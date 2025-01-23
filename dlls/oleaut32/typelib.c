@@ -10239,6 +10239,15 @@ static HRESULT WINAPI ICreateTypeLib2_fnDeleteTypeInfo(ICreateTypeLib2 *iface,
         LPOLESTR name)
 {
     ITypeLibImpl *This = impl_from_ICreateTypeLib2(iface);
+    ITypeInfoImpl *info;
+
+    if (!name)
+        return E_INVALIDARG;
+
+    info = TLB_get_typeinfo_by_name(This, name, NULL);
+    if (!info)
+        return E_INVALIDARG;
+
     FIXME("%p %s - stub\n", This, wine_dbgstr_w(name));
     return E_NOTIMPL;
 }

@@ -3618,19 +3618,14 @@ static ITypeLib2* ITypeLib2_Constructor_MSFT(LPVOID pLib, DWORD dwTLBLength)
 
     pTypeLibImpl->dispatch_href = tlbHeader.dispatchpos;
 
-    /* type infos */
+    /* Allocate and fill typeinfos array. */
     if(tlbHeader.nrtypeinfos >= 0 )
     {
-        ITypeInfoImpl **ppTI;
-
-        ppTI = pTypeLibImpl->typeinfos = calloc(tlbHeader.nrtypeinfos, sizeof(ITypeInfoImpl*));
-
+        pTypeLibImpl->typeinfos = calloc(tlbHeader.nrtypeinfos, sizeof(ITypeInfoImpl*));
         for(i = 0; i < tlbHeader.nrtypeinfos; i++)
         {
-            *ppTI = MSFT_DoTypeInfo(&cx, i, pTypeLibImpl);
-
-            ++ppTI;
-            (pTypeLibImpl->TypeInfoCount)++;
+            pTypeLibImpl->typeinfos[i] = MSFT_DoTypeInfo(&cx, i, pTypeLibImpl);
+            pTypeLibImpl->TypeInfoCount++;
         }
     }
 

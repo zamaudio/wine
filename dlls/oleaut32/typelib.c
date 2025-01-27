@@ -1216,8 +1216,10 @@ typedef struct tagITypeInfoImpl
     TYPEATTR typeattr;
     TYPEDESC *tdescAlias;
 
-    ITypeLibImpl * pTypeLib;        /* back pointer to typelib */
-    int index;                  /* index in this typelib; */
+    /* pIndex and pTypeLib  are required by ITypeInfo::GetContainingTypeLib */
+    UINT pIndex;                  /* index of this typelibimpl */
+    ITypeLibImpl * pTypeLib;      /* back pointer to typelib */
+
     HREFTYPE hreftype;          /* hreftype for app object binding */
     /* type libs seem to store the doc strings in ascii
      * so why should we do it in unicode?
@@ -1535,7 +1537,7 @@ static void dump_TypeInfo(const ITypeInfoImpl * pty)
     TRACE("kind:%s\n", typekind_desc[pty->typeattr.typekind]);
     TRACE("fct:%u var:%u impl:%u\n", pty->typeattr.cFuncs, pty->typeattr.cVars, pty->typeattr.cImplTypes);
     TRACE("wTypeFlags: 0x%04x\n", pty->typeattr.wTypeFlags);
-    TRACE("parent tlb:%p index in TLB:%u\n",pty->pTypeLib, pty->index);
+    TRACE("parent tlb:%p index in TLB:%u\n",pty->pTypeLib, pty->pIndex);
     if (pty->typeattr.typekind == TKIND_MODULE) TRACE("dllname:%s\n", debugstr_w(TLB_get_bstr(pty->DllName)));
     if (TRACE_ON(ole))
         dump_TLBFuncDesc(pty->funcdescs, pty->typeattr.cFuncs);
@@ -2659,9 +2661,9 @@ static ITypeInfoImpl * MSFT_DoTypeInfo(
     MSFT_ReadLEDWords(&tiBase, sizeof(tiBase) ,pcx ,
                       pcx->pTblDir->pTypeInfoTab.offset+count*sizeof(tiBase));
 
-/* this is where we are coming from */
+    /* set the parent ITypeLibImpl of this ITypeInfoImpl */
+    ptiRet->pIndex = count;
     ptiRet->pTypeLib = pLibInfo;
-    ptiRet->index=count;
 
     ptiRet->guid = MSFT_ReadGuid(tiBase.posguid, pcx);
     ptiRet->typeattr.lcid = pLibInfo->set_lcid;   /* FIXME: correct? */
@@ -4549,8 +4551,8 @@ static ITypeLib2* ITypeLib2_Constructor_SLTG(LPVOID pLib, DWORD dwTLBLength)
         pTIHeader->res06, pTIHeader->res0e, pTIHeader->res16, pTIHeader->res1e);
 
       *ppTypeInfoImpl = ITypeInfoImpl_Constructor();
+      (*ppTypeInfoImpl)->pIndex = i;
       (*ppTypeInfoImpl)->pTypeLib = pTypeLibImpl;
-      (*ppTypeInfoImpl)->index = i;
       (*ppTypeInfoImpl)->Name = SLTG_ReadName(pNameTable, pOtherTypeInfoBlks[i].name_offs, pTypeLibImpl);
       (*ppTypeInfoImpl)->dwHelpContext = pOtherTypeInfoBlks[i].helpcontext;
       (*ppTypeInfoImpl)->guid = TLB_append_guid(&pTypeLibImpl->guid_list, &pOtherTypeInfoBlks[i].uuid, 2);
@@ -7805,9 +7807,8 @@ static HRESULT WINAPI ITypeInfo_fnGetRefTypeInfo(
         }
 
         if(ref_type->pImpTLInfo == TLB_REF_INTERNAL) {
-            UINT Index;
             TRACE("internal reference\n");
-            result = ITypeInfo2_GetContainingTypeLib(iface, &pTLib, &Index);
+            result = ITypeInfo2_GetContainingTypeLib(iface, &pTLib, NULL);
         } else {
             if(ref_type->pImpTLInfo->pImpTypeLib) {
                 TRACE("typeinfo in imported typelib that is already loaded\n");
@@ -8013,13 +8014,13 @@ static HRESULT WINAPI ITypeInfo_fnGetMops( ITypeInfo2 *iface, MEMBERID memid, BS
  * within that type library.
  */
 static HRESULT WINAPI ITypeInfo_fnGetContainingTypeLib( ITypeInfo2 *iface,
-        ITypeLib  * *ppTLib, UINT  *pIndex)
+        ITypeLib **ppTLib, UINT *pIndex)
 {
     ITypeInfoImpl *This = impl_from_ITypeInfo2(iface);
 
     /* If a pointer is null, we simply ignore it, the ATL in particular passes pIndex as 0 */
     if (pIndex) {
-      *pIndex=This->index;
+      *pIndex = This->pIndex;
       TRACE("returning pIndex=%d\n", *pIndex);
     }
 
@@ -8552,8 +8553,8 @@ HRESULT WINAPI CreateDispTypeInfo(
     pTypeLibImpl->typeinfos = calloc(pTypeLibImpl->TypeInfoCount, sizeof(ITypeInfoImpl*));
 
     pTIIface = pTypeLibImpl->typeinfos[0] = ITypeInfoImpl_Constructor();
+    pTIIface->pIndex = 0;
     pTIIface->pTypeLib = pTypeLibImpl;
-    pTIIface->index = 0;
     pTIIface->Name = NULL;
     pTIIface->dwHelpContext = -1;
     pTIIface->guid = NULL;
@@ -8606,8 +8607,8 @@ HRESULT WINAPI CreateDispTypeInfo(
     dump_TypeInfo(pTIIface);
 
     pTIClass = pTypeLibImpl->typeinfos[1] = ITypeInfoImpl_Constructor();
+    pTIClass->pIndex = 1;
     pTIClass->pTypeLib = pTypeLibImpl;
-    pTIClass->index = 1;
     pTIClass->Name = NULL;
     pTIClass->dwHelpContext = -1;
     pTIClass->guid = NULL;
@@ -8851,12 +8852,14 @@ static HRESULT WINAPI ICreateTypeLib2_fnCreateTypeInfo(ICreateTypeLib2 *iface,
         return TYPE_E_NAMECONFLICT;
 
     This->typeinfos = realloc(This->typeinfos, sizeof(ITypeInfoImpl*) * (This->TypeInfoCount + 1));
+    This->TypeInfoCount++;
 
-    info = This->typeinfos[This->TypeInfoCount] = ITypeInfoImpl_Constructor();
+    info = This->typeinfos[This->TypeInfoCount - 1] = ITypeInfoImpl_Constructor();
 
+    info->pIndex = This->TypeInfoCount - 1;
     info->pTypeLib = This;
+
     info->Name = TLB_append_str(&This->name_list, name);
-    info->index = This->TypeInfoCount;
     info->typeattr.typekind = kind;
     info->typeattr.cbAlignment = 4;
 
@@ -8890,9 +8893,7 @@ static HRESULT WINAPI ICreateTypeLib2_fnCreateTypeInfo(ICreateTypeLib2 *iface,
         return hres;
     }
 
-    info->hreftype = info->index * sizeof(MSFT_TypeInfoBase);
-
-    ++This->TypeInfoCount;
+    info->hreftype = info->pIndex * sizeof(MSFT_TypeInfoBase);
 
     return S_OK;
 }

@@ -1090,7 +1090,7 @@ typedef struct tagITypeLibImpl
     const TLBString *HelpFile;
     const TLBString *HelpStringDll;
     DWORD dwHelpContext;
-    int TypeInfoCount;          /* nr of typeinfo's in librarry */
+    UINT TypeInfoCount;          /* nr of typeinfo's in librarry */
     struct tagITypeInfoImpl **typeinfos;
     struct list custdata_list;
     struct list implib_list;
@@ -1709,14 +1709,14 @@ static inline TLBCustData *TLB_get_custdata_by_guid(const struct list *custdata_
     return NULL;
 }
 
-static inline ITypeInfoImpl *TLB_get_typeinfo_by_name(ITypeLibImpl *typelib, const OLECHAR *name)
+static inline ITypeInfoImpl *TLB_get_typeinfo_by_name(ITypeLibImpl *typelib, const OLECHAR *name, UINT *index)
 {
-    int i;
-
-    for (i = 0; i < typelib->TypeInfoCount; ++i)
+    for (UINT i = 0; i < typelib->TypeInfoCount; ++i)
     {
-        if (!lstrcmpiW(TLB_get_bstr(typelib->typeinfos[i]->Name), name))
+        if (!lstrcmpiW(TLB_get_bstr(typelib->typeinfos[i]->Name), name)) {
+            if (index) *index = i;
             return typelib->typeinfos[i];
+        }
     }
 
     return NULL;
@@ -5472,7 +5472,7 @@ static HRESULT WINAPI ITypeLibComp_fnBindType(
     if(!szName || !ppTInfo || !ppTComp)
         return E_INVALIDARG;
 
-    info = TLB_get_typeinfo_by_name(This, szName);
+    info = TLB_get_typeinfo_by_name(This, szName, NULL);
     if(!info){
         *ppTInfo = NULL;
         *ppTComp = NULL;
@@ -8847,7 +8847,7 @@ static HRESULT WINAPI ICreateTypeLib2_fnCreateTypeInfo(ICreateTypeLib2 *iface,
     if (!ctinfo || !name)
         return E_INVALIDARG;
 
-    info = TLB_get_typeinfo_by_name(This, name);
+    info = TLB_get_typeinfo_by_name(This, name, NULL);
     if (info)
         return TYPE_E_NAMECONFLICT;
 
@@ -9993,10 +9993,9 @@ static void WMSFT_write_segment(HANDLE outfile, WMSFT_SegContents *segment)
 static HRESULT WMSFT_fixup_typeinfos(ITypeLibImpl *This, WMSFT_TLBFile *file,
         DWORD file_len)
 {
-    DWORD i;
     MSFT_TypeInfoBase *base = (MSFT_TypeInfoBase *)file->typeinfo_seg.data;
 
-    for(i = 0; i < This->TypeInfoCount; ++i){
+    for(UINT i = 0; i < This->TypeInfoCount; ++i){
         base->memoffset += file_len;
         ++base;
     }

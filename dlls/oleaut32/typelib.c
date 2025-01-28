@@ -10271,8 +10271,12 @@ static HRESULT WINAPI ICreateTypeLib2_fnSetCustData(ICreateTypeLib2 *iface,
 static HRESULT WINAPI ICreateTypeLib2_fnSetHelpStringContext(ICreateTypeLib2 *iface,
         ULONG helpStringContext)
 {
-    FIXME("%p, %lu - stub\n", iface, helpStringContext);
-    return E_NOTIMPL;
+    ITypeLibImpl *This = impl_from_ICreateTypeLib2(iface);
+    TRACE("%p, %lu.\n", iface, helpStringContext);
+
+    This->dwHelpContext = helpStringContext;
+
+    return S_OK;
 }
 
 static HRESULT WINAPI ICreateTypeLib2_fnSetHelpStringDll(ICreateTypeLib2 *iface,

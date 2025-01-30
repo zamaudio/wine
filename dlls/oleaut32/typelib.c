@@ -1446,7 +1446,7 @@ static void dump_TLBFuncDescOne(const TLBFuncDesc * pfd)
   MESSAGE("\thelpstring: %s\n", debugstr_w(TLB_get_bstr(pfd->HelpString)));
   if(pfd->Entry == NULL)
       MESSAGE("\tentry: (null)\n");
-  else if(pfd->Entry == (void*)-1)
+  else if(pfd->Entry == TLB_REF_NOT_FOUND)
       MESSAGE("\tentry: invalid\n");
   else if(IS_INTRESOURCE(pfd->Entry))
       MESSAGE("\tentry: %p\n", pfd->Entry);
@@ -7740,7 +7740,7 @@ static HRESULT WINAPI ITypeInfo_fnGetDllEntry( ITypeInfo2 *iface, MEMBERID memid
 
     if (pBstrDllName) *pBstrDllName = SysAllocString(TLB_get_bstr(This->DllName));
 
-    if (!IS_INTRESOURCE(pFDesc->Entry) && (pFDesc->Entry != (void*)-1))
+    if (!IS_INTRESOURCE(pFDesc->Entry) && (pFDesc->Entry != TLB_REF_NOT_FOUND))
     {
         if (pBstrName) *pBstrName = SysAllocString(TLB_get_bstr(pFDesc->Entry));
         if (pwOrdinal) *pwOrdinal = -1;

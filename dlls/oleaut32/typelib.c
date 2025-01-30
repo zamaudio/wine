@@ -5019,27 +5019,33 @@ static HRESULT WINAPI ITypeLib2_fnIsName(
 {
     ITypeLibImpl *This = impl_from_ITypeLib2(iface);
     int tic;
-    UINT fdc, vrc;
 
     TRACE("%p, %s, %#lx, %p.\n", iface, debugstr_w(szNameBuf), lHashVal, pfName);
 
     *pfName=TRUE;
     for(tic = 0; tic < This->TypeInfoCount; ++tic){
         ITypeInfoImpl *pTInfo = This->typeinfos[tic];
-        if(!lstrcmpiW(TLB_get_bstr(pTInfo->Name), szNameBuf)) goto ITypeLib2_fnIsName_exit;
+        UINT fdc;
+
+        if(!lstrcmpiW(TLB_get_bstr(pTInfo->Name), szNameBuf))
+            goto ITypeLib2_fnIsName_exit;
+
         for(fdc = 0; fdc < pTInfo->typeattr.cFuncs; ++fdc) {
             TLBFuncDesc *pFDesc = &pTInfo->funcdescs[fdc];
+
+            if(!lstrcmpiW(TLB_get_bstr(pFDesc->Name), szNameBuf))
+                goto ITypeLib2_fnIsName_exit;
+
             int pc;
-            if(!lstrcmpiW(TLB_get_bstr(pFDesc->Name), szNameBuf)) goto ITypeLib2_fnIsName_exit;
             for(pc=0; pc < pFDesc->funcdesc.cParams; pc++){
                 if(!lstrcmpiW(TLB_get_bstr(pFDesc->pParamDesc[pc].Name), szNameBuf))
                     goto ITypeLib2_fnIsName_exit;
             }
         }
-        for(vrc = 0; vrc < pTInfo->typeattr.cVars; ++vrc){
-            TLBVarDesc *pVDesc = &pTInfo->vardescs[vrc];
-            if(!lstrcmpiW(TLB_get_bstr(pVDesc->Name), szNameBuf)) goto ITypeLib2_fnIsName_exit;
-        }
+
+        TLBVarDesc *pVDesc = TLB_get_vardesc_by_name(pTInfo, szNameBuf);
+        if (pVDesc)
+            goto ITypeLib2_fnIsName_exit;
 
     }
     *pfName=FALSE;

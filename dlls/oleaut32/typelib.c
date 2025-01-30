@@ -4527,7 +4527,7 @@ static ITypeLib2* ITypeLib2_Constructor_SLTG(LPVOID pLib, DWORD dwTLBLength)
     ppTypeInfoImpl = pTypeLibImpl->typeinfos;
 
     for(pBlk = pFirstBlk, order = pHeader->first_blk - 1, i = 0;
-	pBlkEntry[order].next != 0;
+	(pBlkEntry[order].next != 0);
 	order = pBlkEntry[order].next - 1, i++) {
 
       SLTG_TypeInfoHeader *pTIHeader;
@@ -4550,20 +4550,20 @@ static ITypeLib2* ITypeLib2_Constructor_SLTG(LPVOID pLib, DWORD dwTLBLength)
         "pTIHeader->res16 = %lx, pTIHeader->res1e = %lx\n",
         pTIHeader->res06, pTIHeader->res0e, pTIHeader->res16, pTIHeader->res1e);
 
-      *ppTypeInfoImpl = ITypeInfoImpl_Constructor();
-      (*ppTypeInfoImpl)->pIndex = i;
-      (*ppTypeInfoImpl)->pTypeLib = pTypeLibImpl;
-      (*ppTypeInfoImpl)->Name = SLTG_ReadName(pNameTable, pOtherTypeInfoBlks[i].name_offs, pTypeLibImpl);
-      (*ppTypeInfoImpl)->dwHelpContext = pOtherTypeInfoBlks[i].helpcontext;
-      (*ppTypeInfoImpl)->guid = TLB_append_guid(&pTypeLibImpl->guid_list, &pOtherTypeInfoBlks[i].uuid, 2);
-      (*ppTypeInfoImpl)->typeattr.typekind = pTIHeader->typekind;
-      (*ppTypeInfoImpl)->typeattr.wMajorVerNum = pTIHeader->major_version;
-      (*ppTypeInfoImpl)->typeattr.wMinorVerNum = pTIHeader->minor_version;
-      (*ppTypeInfoImpl)->typeattr.wTypeFlags =
+      ppTypeInfoImpl[i] = ITypeInfoImpl_Constructor();
+      ppTypeInfoImpl[i]->pIndex = i;
+      ppTypeInfoImpl[i]->pTypeLib = pTypeLibImpl;
+      ppTypeInfoImpl[i]->Name = SLTG_ReadName(pNameTable, pOtherTypeInfoBlks[i].name_offs, pTypeLibImpl);
+      ppTypeInfoImpl[i]->dwHelpContext = pOtherTypeInfoBlks[i].helpcontext;
+      ppTypeInfoImpl[i]->guid = TLB_append_guid(&pTypeLibImpl->guid_list, &pOtherTypeInfoBlks[i].uuid, 2);
+      ppTypeInfoImpl[i]->typeattr.typekind = pTIHeader->typekind;
+      ppTypeInfoImpl[i]->typeattr.wMajorVerNum = pTIHeader->major_version;
+      ppTypeInfoImpl[i]->typeattr.wMinorVerNum = pTIHeader->minor_version;
+      ppTypeInfoImpl[i]->typeattr.wTypeFlags =
 	(pTIHeader->typeflags1 >> 3) | (pTIHeader->typeflags2 << 5);
 
-      if((*ppTypeInfoImpl)->typeattr.wTypeFlags & TYPEFLAG_FDUAL)
-	(*ppTypeInfoImpl)->typeattr.typekind = TKIND_DISPATCH;
+      if(ppTypeInfoImpl[i]->typeattr.wTypeFlags & TYPEFLAG_FDUAL)
+	 ppTypeInfoImpl[i]->typeattr.typekind = TKIND_DISPATCH;
 
       if((pTIHeader->typeflags1 & 7) != 2)
 	FIXME_(typelib)("typeflags1 = %02x\n", pTIHeader->typeflags1);
@@ -4571,52 +4571,52 @@ static ITypeLib2* ITypeLib2_Constructor_SLTG(LPVOID pLib, DWORD dwTLBLength)
 	FIXME_(typelib)("typeflags3 = %02x\n", pTIHeader->typeflags3);
 
       TRACE_(typelib)("TypeInfo %s of kind %s guid %s typeflags %04x\n",
-	    debugstr_w(TLB_get_bstr((*ppTypeInfoImpl)->Name)),
+	    debugstr_w(TLB_get_bstr(ppTypeInfoImpl[i]->Name)),
 	    typekind_desc[pTIHeader->typekind],
-	    debugstr_guid(TLB_get_guidref((*ppTypeInfoImpl)->guid)),
-	    (*ppTypeInfoImpl)->typeattr.wTypeFlags);
+	    debugstr_guid(TLB_get_guidref(ppTypeInfoImpl[i]->guid)),
+	    ppTypeInfoImpl[i]->typeattr.wTypeFlags);
 
       pMemHeader = (SLTG_MemberHeader*)((char *)pBlk + pTIHeader->elem_table);
 
       pTITail = (SLTG_TypeInfoTail*)((char *)(pMemHeader + 1) + pMemHeader->cbExtra);
 
-      (*ppTypeInfoImpl)->typeattr.cbAlignment = pTITail->cbAlignment;
-      (*ppTypeInfoImpl)->typeattr.cbSizeInstance = pTITail->cbSizeInstance;
-      (*ppTypeInfoImpl)->typeattr.cbSizeVft = pTITail->cbSizeVft;
+      ppTypeInfoImpl[i]->typeattr.cbAlignment = pTITail->cbAlignment;
+      ppTypeInfoImpl[i]->typeattr.cbSizeInstance = pTITail->cbSizeInstance;
+      ppTypeInfoImpl[i]->typeattr.cbSizeVft = pTITail->cbSizeVft;
 
       switch(pTIHeader->typekind) {
       case TKIND_ENUM:
-	SLTG_ProcessEnum((char *)(pMemHeader + 1), *ppTypeInfoImpl, pNameTable,
+	SLTG_ProcessEnum((char *)(pMemHeader + 1), ppTypeInfoImpl[i], pNameTable,
                          pTIHeader, pTITail);
 	break;
 
       case TKIND_RECORD:
-	SLTG_ProcessRecord((char *)(pMemHeader + 1), *ppTypeInfoImpl, pNameTable,
+	SLTG_ProcessRecord((char *)(pMemHeader + 1), ppTypeInfoImpl[i], pNameTable,
                            pTIHeader, pTITail);
 	break;
 
       case TKIND_INTERFACE:
-	SLTG_ProcessInterface((char *)(pMemHeader + 1), *ppTypeInfoImpl, pNameTable,
+	SLTG_ProcessInterface((char *)(pMemHeader + 1), ppTypeInfoImpl[i], pNameTable,
                               pTIHeader, pTITail);
 	break;
 
       case TKIND_COCLASS:
-	SLTG_ProcessCoClass((char *)(pMemHeader + 1), *ppTypeInfoImpl, pNameTable,
+	SLTG_ProcessCoClass((char *)(pMemHeader + 1), ppTypeInfoImpl[i], pNameTable,
                             pTIHeader, pTITail);
 	break;
 
       case TKIND_ALIAS:
-	SLTG_ProcessAlias((char *)(pMemHeader + 1), *ppTypeInfoImpl, pNameTable,
+	SLTG_ProcessAlias((char *)(pMemHeader + 1), ppTypeInfoImpl[i], pNameTable,
                           pTIHeader, pTITail);
 	break;
 
       case TKIND_DISPATCH:
-	SLTG_ProcessDispatch((char *)(pMemHeader + 1), *ppTypeInfoImpl, pNameTable,
+	SLTG_ProcessDispatch((char *)(pMemHeader + 1), ppTypeInfoImpl[i], pNameTable,
                              pTIHeader, pTITail);
 	break;
 
       case TKIND_MODULE:
-	SLTG_ProcessModule((char *)(pMemHeader + 1), *ppTypeInfoImpl, pNameTable,
+	SLTG_ProcessModule((char *)(pMemHeader + 1), ppTypeInfoImpl[i], pNameTable,
                            pTIHeader, pTITail);
 	break;
 
@@ -4643,17 +4643,15 @@ static ITypeLib2* ITypeLib2_Constructor_SLTG(LPVOID pLib, DWORD dwTLBLength)
       X(32);
       X(34);
 #undef X
-      ++ppTypeInfoImpl;
       pBlk = (char*)pBlk + pBlkEntry[order].len;
     }
 
+    free(pOtherTypeInfoBlks);
+
     if(i != pTypeLibImpl->TypeInfoCount) {
-      FIXME("Somehow processed %d TypeInfos\n", i);
-      free(pOtherTypeInfoBlks);
+      FIXME("Somehow processed %d less than %d TypeInfos\n", i, pTypeLibImpl->TypeInfoCount);
       return NULL;
     }
-
-    free(pOtherTypeInfoBlks);
     return &pTypeLibImpl->ITypeLib2_iface;
 }
 

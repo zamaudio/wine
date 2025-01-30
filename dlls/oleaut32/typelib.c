@@ -3889,6 +3889,8 @@ static sltg_ref_lookup_t *SLTG_DoRefs(SLTG_RefInfo *pRef, ITypeLibImpl *pTL,
 	unsigned int lib_offs, type_num;
 
 	ref_type = calloc(1, sizeof(TLBRefType));
+	/* assume internal ref unless import found */
+	ref_type->pImpTLInfo = TLB_REF_INTERNAL;
 
 	name += SLTG_ReadStringA(name, &refname);
 	if(sscanf(refname, "*\\R%x*#%x", &lib_offs, &type_num) != 2)
@@ -3928,9 +3930,6 @@ static sltg_ref_lookup_t *SLTG_DoRefs(SLTG_RefInfo *pRef, ITypeLibImpl *pTL,
             /* Store a reference to IDispatch */
             if(pTL->dispatch_href == -1 && IsEqualGUID(&import->guid->guid, &IID_StdOle) && type_num == 4)
                 pTL->dispatch_href = typelib_ref;
-
-	} else { /* internal ref */
-	  ref_type->pImpTLInfo = TLB_REF_INTERNAL;
 	}
 	ref_type->reference = typelib_ref;
 	ref_type->index = type_num;

@@ -1285,13 +1285,6 @@ static inline BSTR TLB_get_bstr(const TLBString *str)
     return str != NULL ? str->str : NULL;
 }
 
-static inline int TLB_str_memcmp(void *left, const TLBString *str, DWORD len)
-{
-    if(!str)
-        return 1;
-    return memcmp(left, str->str, len);
-}
-
 static inline const GUID *TLB_get_guidref(const TLBGuid *guid)
 {
     return guid != NULL ? &guid->guid : NULL;
@@ -5026,26 +5019,26 @@ static HRESULT WINAPI ITypeLib2_fnIsName(
 {
     ITypeLibImpl *This = impl_from_ITypeLib2(iface);
     int tic;
-    UINT nNameBufLen = (lstrlenW(szNameBuf)+1)*sizeof(WCHAR), fdc, vrc;
+    UINT fdc, vrc;
 
     TRACE("%p, %s, %#lx, %p.\n", iface, debugstr_w(szNameBuf), lHashVal, pfName);
 
     *pfName=TRUE;
     for(tic = 0; tic < This->TypeInfoCount; ++tic){
         ITypeInfoImpl *pTInfo = This->typeinfos[tic];
-        if(!TLB_str_memcmp(szNameBuf, pTInfo->Name, nNameBufLen)) goto ITypeLib2_fnIsName_exit;
+        if(!lstrcmpiW(TLB_get_bstr(pTInfo->Name), szNameBuf)) goto ITypeLib2_fnIsName_exit;
         for(fdc = 0; fdc < pTInfo->typeattr.cFuncs; ++fdc) {
             TLBFuncDesc *pFInfo = &pTInfo->funcdescs[fdc];
             int pc;
-            if(!TLB_str_memcmp(szNameBuf, pFInfo->Name, nNameBufLen)) goto ITypeLib2_fnIsName_exit;
+            if(!lstrcmpiW(TLB_get_bstr(pFInfo->Name), szNameBuf)) goto ITypeLib2_fnIsName_exit;
             for(pc=0; pc < pFInfo->funcdesc.cParams; pc++){
-                if(!TLB_str_memcmp(szNameBuf, pFInfo->pParamDesc[pc].Name, nNameBufLen))
+                if(!lstrcmpiW(TLB_get_bstr(pFInfo->pParamDesc[pc].Name), szNameBuf))
                     goto ITypeLib2_fnIsName_exit;
             }
         }
         for(vrc = 0; vrc < pTInfo->typeattr.cVars; ++vrc){
             TLBVarDesc *pVInfo = &pTInfo->vardescs[vrc];
-            if(!TLB_str_memcmp(szNameBuf, pVInfo->Name, nNameBufLen)) goto ITypeLib2_fnIsName_exit;
+            if(!lstrcmpiW(TLB_get_bstr(pVInfo->Name), szNameBuf)) goto ITypeLib2_fnIsName_exit;
         }
 
     }
@@ -5075,20 +5068,18 @@ static HRESULT WINAPI ITypeLib2_fnFindName(
     ITypeLibImpl *This = impl_from_ITypeLib2(iface);
     int tic;
     UINT count = 0;
-    UINT len;
 
     TRACE("%p, %s %#lx, %p, %p, %p.\n", iface, debugstr_w(name), hash, ppTInfo, memid, found);
 
     if ((!name && hash == 0) || !ppTInfo || !memid || !found)
         return E_INVALIDARG;
 
-    len = (lstrlenW(name) + 1)*sizeof(WCHAR);
     for(tic = 0; count < *found && tic < This->TypeInfoCount; ++tic) {
         ITypeInfoImpl *pTInfo = This->typeinfos[tic];
         TLBVarDesc *var;
         UINT fdc;
 
-        if(!TLB_str_memcmp(name, pTInfo->Name, len)) {
+        if(!lstrcmpiW(TLB_get_bstr(pTInfo->Name), name)) {
             memid[count] = MEMBERID_NIL;
             goto ITypeLib2_fnFindName_exit;
         }
@@ -5096,7 +5087,7 @@ static HRESULT WINAPI ITypeLib2_fnFindName(
         for(fdc = 0; fdc < pTInfo->typeattr.cFuncs; ++fdc) {
             TLBFuncDesc *func = &pTInfo->funcdescs[fdc];
 
-            if(!TLB_str_memcmp(name, func->Name, len)) {
+            if(!lstrcmpiW(TLB_get_bstr(func->Name), name)) {
                 memid[count] = func->funcdesc.memid;
                 goto ITypeLib2_fnFindName_exit;
             }

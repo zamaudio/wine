@@ -5024,17 +5024,17 @@ static HRESULT WINAPI ITypeLib2_fnIsName(
         ITypeInfoImpl *pTInfo = This->typeinfos[tic];
         if(!lstrcmpiW(TLB_get_bstr(pTInfo->Name), szNameBuf)) goto ITypeLib2_fnIsName_exit;
         for(fdc = 0; fdc < pTInfo->typeattr.cFuncs; ++fdc) {
-            TLBFuncDesc *pFInfo = &pTInfo->funcdescs[fdc];
+            TLBFuncDesc *pFDesc = &pTInfo->funcdescs[fdc];
             int pc;
-            if(!lstrcmpiW(TLB_get_bstr(pFInfo->Name), szNameBuf)) goto ITypeLib2_fnIsName_exit;
-            for(pc=0; pc < pFInfo->funcdesc.cParams; pc++){
-                if(!lstrcmpiW(TLB_get_bstr(pFInfo->pParamDesc[pc].Name), szNameBuf))
+            if(!lstrcmpiW(TLB_get_bstr(pFDesc->Name), szNameBuf)) goto ITypeLib2_fnIsName_exit;
+            for(pc=0; pc < pFDesc->funcdesc.cParams; pc++){
+                if(!lstrcmpiW(TLB_get_bstr(pFDesc->pParamDesc[pc].Name), szNameBuf))
                     goto ITypeLib2_fnIsName_exit;
             }
         }
         for(vrc = 0; vrc < pTInfo->typeattr.cVars; ++vrc){
-            TLBVarDesc *pVInfo = &pTInfo->vardescs[vrc];
-            if(!lstrcmpiW(TLB_get_bstr(pVInfo->Name), szNameBuf)) goto ITypeLib2_fnIsName_exit;
+            TLBVarDesc *pVDesc = &pTInfo->vardescs[vrc];
+            if(!lstrcmpiW(TLB_get_bstr(pVDesc->Name), szNameBuf)) goto ITypeLib2_fnIsName_exit;
         }
 
     }
@@ -5070,9 +5070,9 @@ static HRESULT WINAPI ITypeLib2_fnFindName(
     if ((!name && hash == 0) || !ppTInfo || !memid || !found)
         return E_INVALIDARG;
 
+    // TODO: factor out common impl with fnIsName().
     for(tic = 0; count < *found && tic < This->TypeInfoCount; ++tic) {
         ITypeInfoImpl *pTInfo = This->typeinfos[tic];
-        TLBVarDesc *var;
         UINT fdc;
 
         if(!lstrcmpiW(TLB_get_bstr(pTInfo->Name), name)) {
@@ -5081,17 +5081,17 @@ static HRESULT WINAPI ITypeLib2_fnFindName(
         }
 
         for(fdc = 0; fdc < pTInfo->typeattr.cFuncs; ++fdc) {
-            TLBFuncDesc *func = &pTInfo->funcdescs[fdc];
+            TLBFuncDesc *pFDesc = &pTInfo->funcdescs[fdc];
 
-            if(!lstrcmpiW(TLB_get_bstr(func->Name), name)) {
-                memid[count] = func->funcdesc.memid;
+            if(!lstrcmpiW(TLB_get_bstr(pFDesc->Name), name)) {
+                memid[count] = pFDesc->funcdesc.memid;
                 goto ITypeLib2_fnFindName_exit;
             }
         }
 
-        var = TLB_get_vardesc_by_name(pTInfo, name);
-        if (var) {
-            memid[count] = var->vardesc.memid;
+        TLBVarDesc *pVDesc = TLB_get_vardesc_by_name(pTInfo, name);
+        if (pVDesc) {
+            memid[count] = pVDesc->vardesc.memid;
             goto ITypeLib2_fnFindName_exit;
         }
 
@@ -5594,14 +5594,14 @@ static void ITypeInfoImpl_Destroy(ITypeInfoImpl *This)
 
     for(i = 0; i < This->typeattr.cVars; ++i)
     {
-        TLBVarDesc *pVInfo = &This->vardescs[i];
-        if (pVInfo->vardesc_create) {
-            TLB_FreeVarDesc(pVInfo->vardesc_create);
-        } else if (pVInfo->vardesc.varkind == VAR_CONST) {
-            VariantClear(pVInfo->vardesc.lpvarValue);
-            free(pVInfo->vardesc.lpvarValue);
+        TLBVarDesc *pVDesc = &This->vardescs[i];
+        if (pVDesc->vardesc_create) {
+            TLB_FreeVarDesc(pVDesc->vardesc_create);
+        } else if (pVDesc->vardesc.varkind == VAR_CONST) {
+            VariantClear(pVDesc->vardesc.lpvarValue);
+            free(pVDesc->vardesc.lpvarValue);
         }
-        TLB_FreeCustData(&pVInfo->custdata_list);
+        TLB_FreeCustData(&pVDesc->custdata_list);
     }
     free(This->vardescs);
 

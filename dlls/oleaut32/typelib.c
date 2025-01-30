@@ -5065,8 +5065,8 @@ ITypeLib2_fnIsName_exit:
  */
 static HRESULT WINAPI ITypeLib2_fnFindName(
 	ITypeLib2 *iface,
-	LPOLESTR name,
-	ULONG hash,
+	LPOLESTR szNameBuf,
+	ULONG lHashVal,
 	ITypeInfo **ppTInfo,
 	MEMBERID *memid,
 	UINT16 *found)
@@ -5075,9 +5075,9 @@ static HRESULT WINAPI ITypeLib2_fnFindName(
     int tic;
     UINT count = 0;
 
-    TRACE("%p, %s %#lx, %p, %p, %p.\n", iface, debugstr_w(name), hash, ppTInfo, memid, found);
+    TRACE("%p, %s %#lx, %p, %p, %p.\n", iface, debugstr_w(szNameBuf), lHashVal, ppTInfo, memid, found);
 
-    if ((!name && hash == 0) || !ppTInfo || !memid || !found)
+    if ((!szNameBuf && !lHashVal) || !ppTInfo || !memid || !found)
         return E_INVALIDARG;
 
     // TODO: factor out common impl with fnIsName().
@@ -5085,7 +5085,7 @@ static HRESULT WINAPI ITypeLib2_fnFindName(
         ITypeInfoImpl *pTInfo = This->typeinfos[tic];
         UINT fdc;
 
-        if(!lstrcmpiW(TLB_get_bstr(pTInfo->Name), name)) {
+        if(!lstrcmpiW(TLB_get_bstr(pTInfo->Name), szNameBuf)) {
             memid[count] = MEMBERID_NIL;
             goto ITypeLib2_fnFindName_exit;
         }
@@ -5093,13 +5093,13 @@ static HRESULT WINAPI ITypeLib2_fnFindName(
         for(fdc = 0; fdc < pTInfo->typeattr.cFuncs; ++fdc) {
             TLBFuncDesc *pFDesc = &pTInfo->funcdescs[fdc];
 
-            if(!lstrcmpiW(TLB_get_bstr(pFDesc->Name), name)) {
+            if(!lstrcmpiW(TLB_get_bstr(pFDesc->Name), szNameBuf)) {
                 memid[count] = pFDesc->funcdesc.memid;
                 goto ITypeLib2_fnFindName_exit;
             }
         }
 
-        TLBVarDesc *pVDesc = TLB_get_vardesc_by_name(pTInfo, name);
+        TLBVarDesc *pVDesc = TLB_get_vardesc_by_name(pTInfo, szNameBuf);
         if (pVDesc) {
             memid[count] = pVDesc->vardesc.memid;
             goto ITypeLib2_fnFindName_exit;

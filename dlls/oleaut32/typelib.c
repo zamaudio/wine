@@ -3959,7 +3959,7 @@ static char *SLTG_DoImpls(char *pBlk, ITypeInfoImpl *pTI,
        the last one is the regular 0x16 bytes. */
 
     info = (SLTG_ImplInfo*)pBlk;
-    while(1){
+    while(info) {
         pTI->typeattr.cImplTypes++;
         if(info->next == 0xffff)
             break;
@@ -3969,7 +3969,7 @@ static char *SLTG_DoImpls(char *pBlk, ITypeInfoImpl *pTI,
     info = (SLTG_ImplInfo*)pBlk;
     pTI->impltypes = TLBImplType_Alloc(pTI->typeattr.cImplTypes);
     pImplType = pTI->impltypes;
-    while(1) {
+    while(pImplType) {
 	sltg_get_typelib_ref(ref_lookup, info->ref, &pImplType->hRef);
 	pImplType->implflags = info->impltypeflags;
 	++pImplType;

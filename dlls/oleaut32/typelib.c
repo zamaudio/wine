@@ -5359,6 +5359,9 @@ static HRESULT WINAPI ITypeLibComp_fnBind(
 
     for(i = 0; i < This->TypeInfoCount; ++i){
         ITypeInfoImpl *pTypeInfo = This->typeinfos[i];
+        ITypeComp *pSubTypeComp = &pTypeInfo->ITypeComp_iface;
+        HRESULT hr;
+
         TRACE("testing %s\n", debugstr_w(TLB_get_bstr(pTypeInfo->Name)));
 
         /* FIXME: check wFlags here? */
@@ -5370,18 +5373,11 @@ static HRESULT WINAPI ITypeLibComp_fnBind(
             if (pTypeInfo->Name && !wcscmp(pTypeInfo->Name->str, szName))
             {
                 *pDescKind = DESCKIND_TYPECOMP;
-                pBindPtr->lptcomp = &pTypeInfo->ITypeComp_iface;
+                pBindPtr->lptcomp = pSubTypeComp;
                 ITypeComp_AddRef(pBindPtr->lptcomp);
                 TRACE("module or enum: %s\n", debugstr_w(szName));
                 return S_OK;
             }
-        }
-
-        if ((pTypeInfo->typeattr.typekind == TKIND_MODULE) ||
-            (pTypeInfo->typeattr.typekind == TKIND_ENUM))
-        {
-            ITypeComp *pSubTypeComp = &pTypeInfo->ITypeComp_iface;
-            HRESULT hr;
 
             hr = ITypeComp_Bind(pSubTypeComp, szName, lHashVal, wFlags, ppTInfo, pDescKind, pBindPtr);
             if (SUCCEEDED(hr) && (*pDescKind != DESCKIND_NONE))
@@ -5396,8 +5392,6 @@ static HRESULT WINAPI ITypeLibComp_fnBind(
         if ((pTypeInfo->typeattr.typekind == TKIND_COCLASS) &&
             (pTypeInfo->typeattr.wTypeFlags & TYPEFLAG_FAPPOBJECT))
         {
-            ITypeComp *pSubTypeComp = &pTypeInfo->ITypeComp_iface;
-            HRESULT hr;
             ITypeInfo *subtypeinfo;
             BINDPTR subbindptr;
             DESCKIND subdesckind;

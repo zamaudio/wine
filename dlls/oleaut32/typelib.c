@@ -5489,7 +5489,7 @@ static HRESULT WINAPI ITypeLibComp_fnBindType(
 
     TRACE("%p, %s, %#lx, %p, %p.\n", iface, debugstr_w(szName), lHash, ppTInfo, ppTComp);
 
-    if(!szName || !ppTInfo || !ppTComp)
+    if((!szName && !lHash) || !ppTInfo || !ppTComp)
         return E_INVALIDARG;
 
     info = TLB_get_typeinfo_by_name(This, szName, NULL);
@@ -8699,6 +8699,9 @@ static HRESULT WINAPI ITypeComp_fnBind(
     UINT fdc;
 
     TRACE("%p, %s, %#lx, 0x%x, %p, %p, %p.\n", iface, debugstr_w(szName), lHash, wFlags, ppTInfo, pDescKind, pBindPtr);
+
+    if((!szName && !lHash) || !ppTInfo | !pDescKind | !pBindPtr)
+        return E_INVALIDARG;
 
     *pDescKind = DESCKIND_NONE;
     pBindPtr->lpfuncdesc = NULL;

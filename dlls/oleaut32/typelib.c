@@ -5416,7 +5416,7 @@ static HRESULT WINAPI ITypeLibComp_fnBind(
         if ((pTypeInfo->typeattr.typekind == TKIND_ENUM) ||
             (pTypeInfo->typeattr.typekind == TKIND_MODULE))
         {
-            if (pTypeInfo->Name && !wcscmp(pTypeInfo->Name->str, szName))
+            if (pTypeInfo->Name && !wcscmp(TLB_get_bstr(pTypeInfo->Name), szName))
             {
                 *pDescKind = DESCKIND_TYPECOMP;
                 pBindPtr->lptcomp = pSubTypeComp;

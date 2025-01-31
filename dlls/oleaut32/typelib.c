@@ -5531,21 +5531,20 @@ static const ITypeCompVtbl tlbtcvt =
 /*================== ITypeInfo(2) Methods ===================================*/
 static ITypeInfoImpl* ITypeInfoImpl_Constructor(void)
 {
-    ITypeInfoImpl *pTypeInfoImpl;
+    ITypeInfoImpl *pTypeInfoImpl = calloc(1, sizeof(ITypeInfoImpl));
+    if (!pTypeInfoImpl)
+        return NULL;
 
-    pTypeInfoImpl = calloc(1, sizeof(ITypeInfoImpl));
-    if (pTypeInfoImpl)
-    {
-      pTypeInfoImpl->ITypeInfo2_iface.lpVtbl = &tinfvt;
-      pTypeInfoImpl->ITypeComp_iface.lpVtbl = &tcompvt;
-      pTypeInfoImpl->ICreateTypeInfo2_iface.lpVtbl = &CreateTypeInfo2Vtbl;
-      pTypeInfoImpl->ref = 0;
-      pTypeInfoImpl->hreftype = -1;
-      pTypeInfoImpl->typeattr.memidConstructor = MEMBERID_NIL;
-      pTypeInfoImpl->typeattr.memidDestructor = MEMBERID_NIL;
-      pTypeInfoImpl->pcustdata_list = &pTypeInfoImpl->custdata_list;
-      list_init(pTypeInfoImpl->pcustdata_list);
-    }
+    pTypeInfoImpl->ITypeInfo2_iface.lpVtbl = &tinfvt;
+    pTypeInfoImpl->ITypeComp_iface.lpVtbl = &tcompvt;
+    pTypeInfoImpl->ICreateTypeInfo2_iface.lpVtbl = &CreateTypeInfo2Vtbl;
+    pTypeInfoImpl->ref = 0;
+    pTypeInfoImpl->hreftype = -1;
+    pTypeInfoImpl->typeattr.memidConstructor = MEMBERID_NIL;
+    pTypeInfoImpl->typeattr.memidDestructor = MEMBERID_NIL;
+    pTypeInfoImpl->pcustdata_list = &pTypeInfoImpl->custdata_list;
+    list_init(pTypeInfoImpl->pcustdata_list);
+
     TRACE("(%p)\n", pTypeInfoImpl);
     return pTypeInfoImpl;
 }

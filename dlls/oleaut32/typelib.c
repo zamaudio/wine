@@ -1287,6 +1287,11 @@ static inline BSTR TLB_get_bstr(const TLBString *str)
     return str != NULL ? str->str : NULL;
 }
 
+static inline void TLB_set_bstr(LPOLESTR s, const TLBString *str)
+{
+    lstrcpyW(s, str->str);
+}
+
 static inline const GUID *TLB_get_guidref(const TLBGuid *guid)
 {
     return guid != NULL ? &guid->guid : NULL;
@@ -5021,25 +5026,33 @@ static HRESULT WINAPI ITypeLib2_fnIsName(
         ITypeInfoImpl *pTInfo = This->typeinfos[tic];
         UINT fdc;
 
-        if(!lstrcmpiW(TLB_get_bstr(pTInfo->Name), szNameBuf))
+        if(!lstrcmpiW(TLB_get_bstr(pTInfo->Name), szNameBuf)) {
+            TLB_set_bstr(szNameBuf, pTInfo->Name);
             goto ITypeLib2_fnIsName_exit;
+        }
 
         for(fdc = 0; fdc < pTInfo->typeattr.cFuncs; ++fdc) {
             TLBFuncDesc *pFDesc = &pTInfo->funcdescs[fdc];
 
-            if(!lstrcmpiW(TLB_get_bstr(pFDesc->Name), szNameBuf))
+            if(!lstrcmpiW(TLB_get_bstr(pFDesc->Name), szNameBuf)) {
+                TLB_set_bstr(szNameBuf, pFDesc->Name);
                 goto ITypeLib2_fnIsName_exit;
+            }
 
             int pc;
             for(pc=0; pc < pFDesc->funcdesc.cParams; pc++){
-                if(!lstrcmpiW(TLB_get_bstr(pFDesc->pParamDesc[pc].Name), szNameBuf))
+                if(!lstrcmpiW(TLB_get_bstr(pFDesc->pParamDesc[pc].Name), szNameBuf)) {
+                    TLB_set_bstr(szNameBuf, pFDesc->pParamDesc[pc].Name);
                     goto ITypeLib2_fnIsName_exit;
+                }
             }
         }
 
         TLBVarDesc *pVDesc = TLB_get_vardesc_by_name(pTInfo, szNameBuf);
-        if (pVDesc)
+        if (pVDesc) {
+            TLB_set_bstr(szNameBuf, pVDesc->Name);
             goto ITypeLib2_fnIsName_exit;
+        }
 
     }
     *pfName=FALSE;
@@ -5081,6 +5094,7 @@ static HRESULT WINAPI ITypeLib2_fnFindName(
 
         if(!lstrcmpiW(TLB_get_bstr(pTInfo->Name), szNameBuf)) {
             memid[count] = MEMBERID_NIL;
+            TLB_set_bstr(szNameBuf, pTInfo->Name);
             goto ITypeLib2_fnFindName_exit;
         }
 
@@ -5089,6 +5103,7 @@ static HRESULT WINAPI ITypeLib2_fnFindName(
 
             if(!lstrcmpiW(TLB_get_bstr(pFDesc->Name), szNameBuf)) {
                 memid[count] = pFDesc->funcdesc.memid;
+                TLB_set_bstr(szNameBuf, pFDesc->Name);
                 goto ITypeLib2_fnFindName_exit;
             }
         }
@@ -5096,6 +5111,7 @@ static HRESULT WINAPI ITypeLib2_fnFindName(
         TLBVarDesc *pVDesc = TLB_get_vardesc_by_name(pTInfo, szNameBuf);
         if (pVDesc) {
             memid[count] = pVDesc->vardesc.memid;
+            TLB_set_bstr(szNameBuf, pVDesc->Name);
             goto ITypeLib2_fnFindName_exit;
         }
 

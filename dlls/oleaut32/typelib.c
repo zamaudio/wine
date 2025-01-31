@@ -5027,6 +5027,9 @@ static HRESULT WINAPI ITypeLib2_fnIsName(
 
     TRACE("%p, %s, %#lx, %p.\n", iface, debugstr_w(szNameBuf), lHashVal, pfName);
 
+    if ((!szNameBuf && !lHashVal) || !pfName)
+        return E_INVALIDARG;
+
     *pfName=TRUE;
     for(tic = 0; tic < This->TypeInfoCount; ++tic){
         ITypeInfoImpl *pTInfo = This->typeinfos[tic];

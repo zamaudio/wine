@@ -1072,7 +1072,7 @@ typedef struct tagITypeLibImpl
     TLBGuid *guid;
     LCID lcid;
     SYSKIND syskind;
-    int ptr_size;
+    ULONG ptr_size;
     WORD ver_major;
     WORD ver_minor;
     WORD libflags;
@@ -1300,7 +1300,7 @@ static inline const GUID *TLB_get_guid_null(const TLBGuid *guid)
     return guid != NULL ? &guid->guid : &GUID_NULL;
 }
 
-static int get_ptr_size(SYSKIND syskind)
+static ULONG get_ptr_size(SYSKIND syskind)
 {
     switch(syskind){
     case SYS_WIN64:

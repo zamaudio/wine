@@ -8791,18 +8791,7 @@ static HRESULT WINAPI ITypeComp_fnBindType(
     ITypeInfo ** ppTInfo,
     ITypeComp ** ppTComp)
 {
-    TRACE("%s, %#lx, %p, %p.\n", debugstr_w(szName), lHashVal, ppTInfo, ppTComp);
-
-    /* strange behaviour (does nothing) but like the
-     * original */
-
-    if (!ppTInfo || !ppTComp)
-        return E_POINTER;
-
-    *ppTInfo = NULL;
-    *ppTComp = NULL;
-
-    return S_OK;
+    return ITypeLibComp_fnBindType(iface, szName, lHashVal, ppTInfo, ppTComp);
 }
 
 static const ITypeCompVtbl tcompvt =

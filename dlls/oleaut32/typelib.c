@@ -5353,6 +5353,9 @@ static HRESULT WINAPI ITypeLibComp_fnBind(
 
     TRACE("%p, %s, %#lx, %#x, %p, %p, %p.\n", iface, debugstr_w(szName), lHashVal, wFlags, ppTInfo, pDescKind, pBindPtr);
 
+    if ((!szName && !lHashVal) || !ppTInfo || !pDescKind || !pBindPtr)
+        return E_INVALIDARG;
+
     *pDescKind = DESCKIND_NONE;
     pBindPtr->lptcomp = NULL;
     *ppTInfo = NULL;

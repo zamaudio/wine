@@ -5364,7 +5364,17 @@ static HRESULT WINAPI ITypeLibComp_fnBind(
 
         TRACE("testing %s\n", debugstr_w(TLB_get_bstr(pTypeInfo->Name)));
 
-        /* FIXME: check wFlags here? */
+        for(int fdc = 0; fdc < pTypeInfo->typeattr.cFuncs; ++fdc){
+            const TLBFuncDesc *pFDesc = &pTypeInfo->funcdescs[fdc];
+            if (!lstrcmpiW(TLB_get_bstr(pFDesc->Name), szName)) {
+                if (!wFlags || (pFDesc->funcdesc.invkind & wFlags))
+                    break;
+                else
+                    /* name found, but wrong flags */
+                    hr = TYPE_E_TYPEMISMATCH;
+            }
+        }
+
         /* FIXME: we should use a hash table to look this info up using lHashVal
          * instead of an O(n) search */
         if ((pTypeInfo->typeattr.typekind == TKIND_ENUM) ||

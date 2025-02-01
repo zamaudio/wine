@@ -7887,9 +7887,9 @@ static HRESULT WINAPI ITypeInfo_fnGetRefTypeInfo(
     if ((INT)hRefType < 0) {
         ITypeInfoImpl *pTypeInfoImpl;
 
-        if (!(This->typeattr.wTypeFlags & TYPEFLAG_FDUAL) ||
-                !(This->typeattr.typekind == TKIND_INTERFACE ||
-                    This->typeattr.typekind == TKIND_DISPATCH))
+        if (!(This->typeattr.wTypeFlags & TYPEFLAG_FDUAL) &&
+                (This->typeattr.typekind != TKIND_INTERFACE) &&
+                (This->typeattr.typekind != TKIND_DISPATCH))
             return TYPE_E_ELEMENTNOTFOUND;
 
         /* when we meet a DUAL typeinfo, we must create the alternate
@@ -11165,7 +11165,7 @@ static HRESULT WINAPI ICreateTypeInfo2_fnLayOut(ICreateTypeInfo2 *iface)
                 This->typeattr.cbSizeVft = attr->cbSizeVft;
                 ITypeInfo_ReleaseTypeAttr(inh, attr);
 
-                do{
+                do {
                     ++depth;
                     hres = ITypeInfo_GetRefTypeOfImplType(inh, 0, &inh_href);
                     if(SUCCEEDED(hres)){
@@ -11176,8 +11176,7 @@ static HRESULT WINAPI ICreateTypeInfo2_fnLayOut(ICreateTypeInfo2 *iface)
                             inh = next;
                         }
                     }
-                }while(SUCCEEDED(hres));
-                hres = S_OK;
+                } while(FAILED(hres));
 
                 ITypeInfo_Release(inh);
             } else if (hres == TYPE_E_ELEMENTNOTFOUND) {

@@ -673,7 +673,7 @@ HRESULT WINAPI RegisterTypeLib(ITypeLib *ptlib, const WCHAR *szFullPath, const W
         {
             WCHAR buf[20];
 
-            /* FIXME: is %u correct? */
+            /* FIXME: is %u correct? YOU TELL ME? */
             swprintf(buf, ARRAY_SIZE(buf), L"%u", attr->wLibFlags);
             if (RegSetValueExW(subKey, NULL, 0, REG_SZ,
                                (BYTE *)buf, (lstrlenW(buf) + 1)*sizeof(WCHAR) ) != ERROR_SUCCESS)
@@ -1062,6 +1062,72 @@ typedef struct tagTLBString {
     struct list entry;
 } TLBString;
 
+struct hash_item {
+    UINT k;
+    struct tagITypeInfoImpl *v;
+};
+
+struct hash_map { // rename to struct ITypeInfoHashMap
+    size_t len;
+    size_t capacity;
+    struct hash_item *items;
+};
+
+struct hash_map *hashmap_init(void)
+{
+    struct hash_map *ret = calloc(1, sizeof(*ret));
+    if (!ret) return NULL;
+
+    ret->capacity = 15000; // initial length of items array.
+    ret->items = calloc(ret->capacity, sizeof(struct hash_item));
+    if (!ret->items) {
+        free(ret);
+        return NULL;
+    }
+    return ret;
+}
+
+static UINT hashmap_hash(ULONG x)
+{
+    x = ((x >> 16) ^ x) * 0x45d9f3b;
+    x = ((x >> 16) ^ x) * 0x45d9f3b;
+    x = (x >> 16) ^ x;
+    return x;
+}
+
+static UINT hashmap_insert(struct hash_map *hm, ULONG k, struct tagITypeInfoImpl *v)
+{
+    size_t i = hashmap_hash(k) & (hm->capacity - 1);
+
+    for (; hm->items[i].k; i++) {
+        if (i>= hm->capacity) i = 0; // wrap
+        if (hm->items[i].k == k) {
+            hm->items[i].v = v;
+            return hm->items[i].k;
+        }
+    }
+
+    hm->items[i].k = k;
+    hm->items[i].v = v;
+    hm->len++;
+
+    return hm->items[i].k;
+}
+
+static void hashmap_search(struct hash_map *hm, ULONG k, struct tagITypeInfoImpl **v)
+{
+    size_t i = hashmap_hash(k) & (hm->capacity - 1);
+
+    *v = NULL; // assume not found
+    for (; hm->items[i].k; i++) {
+            if (i >= hm->capacity) i = 0; //wrap
+            if (hm->items[i].k == k) {
+                *v = hm->items[i].v;
+                break;
+            }
+    }
+}
+
 /* internal ITypeLib data */
 typedef struct tagITypeLibImpl
 {
@@ -1092,6 +1158,7 @@ typedef struct tagITypeLibImpl
     DWORD dwHelpContext;
     UINT TypeInfoCount;          /* nr of typeinfo's in librarry */
     struct tagITypeInfoImpl **typeinfos;
+    struct hash_map *typeinfo_map;
     struct list custdata_list;
     struct list implib_list;
     int ctTypeDesc;             /* number of items in type desc array */
@@ -1268,7 +1335,7 @@ static const ITypeInfo2Vtbl tinfvt;
 static const ITypeCompVtbl  tcompvt;
 static const ICreateTypeInfo2Vtbl CreateTypeInfo2Vtbl;
 
-static ITypeInfoImpl* ITypeInfoImpl_Constructor(void);
+static ITypeInfoImpl* ITypeInfoImpl_Constructor(ITypeLibImpl *, TLBString *);
 static void ITypeInfoImpl_Destroy(ITypeInfoImpl *This);
 
 typedef struct tagTLBContext
@@ -1714,17 +1781,15 @@ static inline TLBCustData *TLB_get_custdata_by_guid(const struct list *custdata_
     return NULL;
 }
 
-static inline ITypeInfoImpl *TLB_get_typeinfo_by_name(ITypeLibImpl *typelib, const OLECHAR *name, UINT *index)
+static inline ITypeInfoImpl *TLB_get_typeinfo_by_name(ITypeLibImpl *This, const OLECHAR *name, UINT *index)
 {
-    for (UINT i = 0; i < typelib->TypeInfoCount; ++i)
-    {
-        if (!lstrcmpiW(TLB_get_bstr(typelib->typeinfos[i]->Name), name)) {
-            if (index) *index = i;
-            return typelib->typeinfos[i];
-        }
-    }
+    struct hash_map *typeinfo_map = This->typeinfo_map;
+    struct tagITypeInfoImpl *v;
 
-    return NULL;
+    ULONG lHashVal = LHashValOfNameSysA(This->syskind, This->lcid, ((LPCSTR) name));
+    hashmap_search(typeinfo_map, lHashVal, &v);
+    if (index && v) *index = v->pIndex;
+    return v;
 }
 
 static void TLBVarDesc_Constructor(TLBVarDesc *var_desc)
@@ -2434,6 +2499,7 @@ MSFT_DoFuncs(TLBContext*     pcx,
             ptfd->funcdesc.oVft   =   (unsigned short)(pFuncRec->VtableOffset & ~1) * sizeof(void *) / pTI->pTypeLib->ptr_size;
         ptfd->funcdesc.wFuncFlags =   LOWORD(pFuncRec->Flags) ;
 
+        // Hmmmmmmmmm?????
         /* nameoffset is sometimes -1 on the second half of a propget/propput
          * pair of functions */
         if ((nameoffset == -1) && (i > 0) &&
@@ -2662,13 +2728,14 @@ static ITypeInfoImpl * MSFT_DoTypeInfo(
 
     TRACE_(typelib)("count=%u\n", count);
 
-    ptiRet = ITypeInfoImpl_Constructor();
+    TLBString *szNameBuf = MSFT_ReadName(pcx, tiBase.NameOffset);
+
+    ptiRet = ITypeInfoImpl_Constructor(pLibInfo, szNameBuf);
     MSFT_ReadLEDWords(&tiBase, sizeof(tiBase) ,pcx ,
                       pcx->pTblDir->pTypeInfoTab.offset+count*sizeof(tiBase));
 
     /* set the parent ITypeLibImpl of this ITypeInfoImpl */
     ptiRet->pIndex = count;
-    ptiRet->pTypeLib = pLibInfo;
 
     ptiRet->guid = MSFT_ReadGuid(tiBase.posguid, pcx);
     ptiRet->typeattr.lcid = pLibInfo->set_lcid;   /* FIXME: correct? */
@@ -2693,8 +2760,6 @@ static ITypeInfoImpl * MSFT_DoTypeInfo(
 /*  FIXME: */
 /*    IDLDESC  idldescType; *//* never saw this one != zero  */
 
-/* name, eventually add to a hash table */
-    ptiRet->Name=MSFT_ReadName(pcx, tiBase.NameOffset);
     ptiRet->hreftype = MSFT_ReadHreftype(pcx, tiBase.NameOffset);
     TRACE_(typelib)("reading %s\n", debugstr_w(TLB_get_bstr(ptiRet->Name)));
     /* help info */
@@ -3407,6 +3472,12 @@ static ITypeLibImpl* TypeLibImpl_Constructor(void)
 
     pTypeLibImpl = calloc(1, sizeof(ITypeLibImpl));
     if (!pTypeLibImpl) return NULL;
+
+    pTypeLibImpl->typeinfo_map = hashmap_init();
+    if (!pTypeLibImpl->typeinfo_map) {
+        free(pTypeLibImpl);
+        return NULL;
+    }
 
     pTypeLibImpl->ITypeLib2_iface.lpVtbl = &tlbvt;
     pTypeLibImpl->ITypeComp_iface.lpVtbl = &tlbtcvt;
@@ -4521,6 +4592,7 @@ static ITypeLib2* ITypeLib2_Constructor_SLTG(LPVOID pLib, DWORD dwTLBLength)
     TRACE_(typelib)("Library name is %s\n", pNameTable + pLibBlk->name);
 
     pTypeLibImpl->Name = SLTG_ReadName(pNameTable, pLibBlk->name, pTypeLibImpl);
+    // hashmap too??
 
 
     /* Hopefully we now have enough ptrs set up to actually read in
@@ -4555,10 +4627,11 @@ static ITypeLib2* ITypeLib2_Constructor_SLTG(LPVOID pLib, DWORD dwTLBLength)
         "pTIHeader->res16 = %lx, pTIHeader->res1e = %lx\n",
         pTIHeader->res06, pTIHeader->res0e, pTIHeader->res16, pTIHeader->res1e);
 
-      ppTypeInfoImpl[i] = ITypeInfoImpl_Constructor();
+    TLBString *name = SLTG_ReadName(pNameTable, pOtherTypeInfoBlks[i].name_offs, pTypeLibImpl);
+
+      ppTypeInfoImpl[i] = ITypeInfoImpl_Constructor(pTypeLibImpl, name);
+
       ppTypeInfoImpl[i]->pIndex = i;
-      ppTypeInfoImpl[i]->pTypeLib = pTypeLibImpl;
-      ppTypeInfoImpl[i]->Name = SLTG_ReadName(pNameTable, pOtherTypeInfoBlks[i].name_offs, pTypeLibImpl);
       ppTypeInfoImpl[i]->dwHelpContext = pOtherTypeInfoBlks[i].helpcontext;
       ppTypeInfoImpl[i]->guid = TLB_append_guid(&pTypeLibImpl->guid_list, &pOtherTypeInfoBlks[i].uuid, 2);
       ppTypeInfoImpl[i]->typeattr.typekind = pTIHeader->typekind;
@@ -5025,14 +5098,21 @@ static HRESULT WINAPI ITypeLib2_fnIsName(
         return E_INVALIDARG;
 
     *pfName=TRUE;
-    for(tic = 0; tic < This->TypeInfoCount; ++tic){
-        ITypeInfoImpl *pTInfo = This->typeinfos[tic];
-        UINT fdc;
 
-        if(!lstrcmpiW(TLB_get_bstr(pTInfo->Name), szNameBuf)) {
-            TLB_set_bstr(szNameBuf, pTInfo->Name);
-            goto ITypeLib2_fnIsName_exit;
-        }
+    if (!lHashVal) {
+            lHashVal = LHashValOfNameSysA(This->syskind, This->lcid, ((LPCSTR) szNameBuf));
+            TRACE("%p, %s, %#lx, No hash provided, calculating.\n", iface, debugstr_w(szNameBuf), lHashVal);
+    }
+    ITypeInfoImpl *pTInfo;
+    (void)hashmap_search(This->typeinfo_map, lHashVal, &pTInfo);
+    if (pTInfo) {
+        goto ITypeLib2_fnIsName_exit;
+        FIXME("found name (%s) in hashmap\n", debugstr_w(TLB_get_bstr(pTInfo->Name)));
+    }
+
+    for(tic = 0; tic < This->TypeInfoCount; ++tic){
+        pTInfo = This->typeinfos[tic];
+        UINT fdc;
 
         for(fdc = 0; fdc < pTInfo->typeattr.cFuncs; ++fdc) {
             TLBFuncDesc *pFDesc = &pTInfo->funcdescs[fdc];
@@ -5091,13 +5171,24 @@ static HRESULT WINAPI ITypeLib2_fnFindName(
         return E_INVALIDARG;
 
     // TODO: factor out common impl with fnIsName().
+    if (!lHashVal) {
+            lHashVal = LHashValOfNameSysA(This->syskind, This->lcid, ((LPCSTR) szNameBuf));
+            TRACE("%p, %s, %#lx, No hash provided, calculating.\n", iface, debugstr_w(szNameBuf), lHashVal);
+    }
+    ITypeInfoImpl *pTInfo;
+    (void)hashmap_search(This->typeinfo_map, lHashVal, &pTInfo);
+    if (pTInfo) {
+        FIXME("found name (%s) in hashmap\n", debugstr_w(TLB_get_bstr(pTInfo->Name)));
+        TLB_set_bstr(szNameBuf, pTInfo->Name);
+        //goto ITypeLib2_fnFindName_exit;
+    }
+
     for(tic = 0; count < *found && tic < This->TypeInfoCount; ++tic) {
-        ITypeInfoImpl *pTInfo = This->typeinfos[tic];
+        pTInfo = This->typeinfos[tic];
         UINT fdc;
 
         if(!lstrcmpiW(TLB_get_bstr(pTInfo->Name), szNameBuf)) {
-            memid[count] = MEMBERID_NIL;
-            TLB_set_bstr(szNameBuf, pTInfo->Name);
+            memid[count] = MEMBERID_NIL; // ???
             goto ITypeLib2_fnFindName_exit;
         }
 
@@ -5359,6 +5450,16 @@ static HRESULT WINAPI ITypeLibComp_fnBind(
     if ((!szName && !lHashVal) || !ppTInfo || !pDescKind || !pBindPtr)
         return E_INVALIDARG;
 
+    if (!lHashVal) {
+            lHashVal = LHashValOfNameSysA(This->syskind, This->lcid, ((LPCSTR) szName));
+            TRACE("%p, %s, %#lx, No hash provided, calculating.\n", iface, debugstr_w(szName), lHashVal);
+    }
+    ITypeInfoImpl *pTInfo_;
+    (void)hashmap_search(This->typeinfo_map, lHashVal, &pTInfo_);
+    if (pTInfo_) {
+        FIXME("found name (%s) in hashmap\n", debugstr_w(TLB_get_bstr(pTInfo_->Name)));
+    }
+
     *pDescKind = DESCKIND_NONE;
     pBindPtr->lptcomp = NULL;
     *ppTInfo = NULL;
@@ -5386,7 +5487,7 @@ static HRESULT WINAPI ITypeLibComp_fnBind(
         if ((pTypeInfo->typeattr.typekind == TKIND_ENUM) ||
             (pTypeInfo->typeattr.typekind == TKIND_MODULE))
         {
-            if (pTypeInfo->Name && !wcscmp(TLB_get_bstr(pTypeInfo->Name), szName))
+            if (pTInfo_)
             {
                 *pDescKind = DESCKIND_TYPECOMP;
                 pBindPtr->lptcomp = pSubTypeComp;
@@ -5529,12 +5630,21 @@ static const ITypeCompVtbl tlbtcvt =
 };
 
 /*================== ITypeInfo(2) Methods ===================================*/
-static ITypeInfoImpl* ITypeInfoImpl_Constructor(void)
+static ITypeInfoImpl* ITypeInfoImpl_Constructor(ITypeLibImpl *pLibInfo, TLBString *szNameBuf)
 {
     ITypeInfoImpl *pTypeInfoImpl = calloc(1, sizeof(ITypeInfoImpl));
     if (!pTypeInfoImpl)
         return NULL;
 
+    pTypeInfoImpl->Name = szNameBuf;
+
+    if (szNameBuf) {
+    // insert in hashmap
+        ULONG lHashVal = LHashValOfNameSys(pLibInfo->syskind, pLibInfo->lcid, TLB_get_bstr(szNameBuf));
+        (void)hashmap_insert(pLibInfo->typeinfo_map, lHashVal, pTypeInfoImpl);
+    }
+
+    pTypeInfoImpl->pTypeLib = pLibInfo;
     pTypeInfoImpl->ITypeInfo2_iface.lpVtbl = &tinfvt;
     pTypeInfoImpl->ITypeComp_iface.lpVtbl = &tcompvt;
     pTypeInfoImpl->ICreateTypeInfo2_iface.lpVtbl = &CreateTypeInfo2Vtbl;
@@ -7780,7 +7890,7 @@ static HRESULT WINAPI ITypeInfo_fnGetRefTypeInfo(
         /* when we meet a DUAL typeinfo, we must create the alternate
         * version of it.
         */
-        pTypeInfoImpl = ITypeInfoImpl_Constructor();
+        pTypeInfoImpl = ITypeInfoImpl_Constructor(NULL, NULL); // XXX
 
         *pTypeInfoImpl = *This;
         pTypeInfoImpl->ref = 0;
@@ -8581,10 +8691,8 @@ HRESULT WINAPI CreateDispTypeInfo(
     pTypeLibImpl->TypeInfoCount = 2;
     pTypeLibImpl->typeinfos = calloc(pTypeLibImpl->TypeInfoCount, sizeof(ITypeInfoImpl*));
 
-    pTIIface = pTypeLibImpl->typeinfos[0] = ITypeInfoImpl_Constructor();
+    pTIIface = pTypeLibImpl->typeinfos[0] = ITypeInfoImpl_Constructor(pTypeLibImpl, NULL);
     pTIIface->pIndex = 0;
-    pTIIface->pTypeLib = pTypeLibImpl;
-    pTIIface->Name = NULL;
     pTIIface->dwHelpContext = -1;
     pTIIface->guid = NULL;
     pTIIface->typeattr.lcid = lcid;
@@ -8635,10 +8743,8 @@ HRESULT WINAPI CreateDispTypeInfo(
 
     dump_TypeInfo(pTIIface);
 
-    pTIClass = pTypeLibImpl->typeinfos[1] = ITypeInfoImpl_Constructor();
+    pTIClass = pTypeLibImpl->typeinfos[1] = ITypeInfoImpl_Constructor(pTypeLibImpl, NULL);
     pTIClass->pIndex = 1;
-    pTIClass->pTypeLib = pTypeLibImpl;
-    pTIClass->Name = NULL;
     pTIClass->dwHelpContext = -1;
     pTIClass->guid = NULL;
     pTIClass->typeattr.lcid = lcid;
@@ -8875,12 +8981,11 @@ static HRESULT WINAPI ICreateTypeLib2_fnCreateTypeInfo(ICreateTypeLib2 *iface,
     This->typeinfos = realloc(This->typeinfos, sizeof(ITypeInfoImpl*) * (This->TypeInfoCount + 1));
     This->TypeInfoCount++;
 
-    info = This->typeinfos[This->TypeInfoCount - 1] = ITypeInfoImpl_Constructor();
+    TLBString *info_name = TLB_append_str(&This->name_list, name);
+    info = This->typeinfos[This->TypeInfoCount - 1] = ITypeInfoImpl_Constructor(This, info_name);
 
     info->pIndex = This->TypeInfoCount - 1;
-    info->pTypeLib = This;
 
-    info->Name = TLB_append_str(&This->name_list, name);
     info->typeattr.typekind = kind;
     info->typeattr.cbAlignment = 4;
 

@@ -5536,11 +5536,8 @@ static HRESULT WINAPI ITypeLibComp_fnBindType(
         return E_INVALIDARG;
 
     info = TLB_get_typeinfo_by_name(This, szName);
-    if(!info){
-        *ppTInfo = NULL;
-        *ppTComp = NULL;
-        return S_OK;
-    }
+    if(!info)
+        return E_INVALIDARG;
 
     *ppTInfo = (ITypeInfo *)&info->ITypeInfo2_iface;
     ITypeInfo_AddRef(*ppTInfo);

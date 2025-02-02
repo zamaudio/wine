@@ -5612,7 +5612,7 @@ static HRESULT WINAPI ITypeLibComp_fnBindType(
     if(!info){
         *ppTInfo = NULL;
         *ppTComp = NULL;
-        return S_OK;
+        return E_INVALIDARG;
     }
 
     *ppTInfo = (ITypeInfo *)&info->ITypeInfo2_iface;

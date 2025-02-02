@@ -7895,7 +7895,7 @@ static HRESULT WINAPI ITypeInfo_fnGetRefTypeInfo(
         /* when we meet a DUAL typeinfo, we must create the alternate
         * version of it.
         */
-        pTypeInfoImpl = ITypeInfoImpl_Constructor(NULL, NULL); // XXX
+        pTypeInfoImpl = ITypeInfoImpl_Constructor(This->pTypeLib, NULL);
 
         *pTypeInfoImpl = *This;
         pTypeInfoImpl->ref = 0;

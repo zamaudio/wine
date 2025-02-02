@@ -5603,7 +5603,7 @@ static HRESULT WINAPI ITypeLibComp_fnBindType(
     ITypeLibImpl *This = impl_from_ITypeComp(iface);
     ITypeInfoImpl *info;
 
-    TRACE("%p, %s, %#lx, %p, %p.\n", iface, debugstr_w(szName), lHashVal, ppTInfo, ppTComp);
+    FIXME("%p, %s, %#lx, %p, %p.\n", iface, debugstr_w(szName), lHashVal, ppTInfo, ppTComp);
 
     if((!szName && !lHashVal) || !ppTInfo || !ppTComp)
         return E_INVALIDARG;

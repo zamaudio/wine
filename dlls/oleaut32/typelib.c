@@ -1786,8 +1786,13 @@ static inline ITypeInfoImpl *TLB_get_typeinfo_by_name(ITypeLibImpl *This, const 
     struct hash_map *typeinfo_map = This->typeinfo_map;
     struct tagITypeInfoImpl *v;
 
-    ULONG lHashVal = LHashValOfNameSysA(This->syskind, This->lcid, ((LPCSTR) name));
+    ULONG lHashVal = LHashValOfNameSys(This->syskind, This->lcid, name);
     hashmap_search(typeinfo_map, lHashVal, &v);
+    if (v) {
+        FIXME("found name (%s) in hashmap\n", debugstr_w(TLB_get_bstr(v->Name)));
+    } else {
+        FIXME("missing hash in hashmap for name (%s)\n", debugstr_w(name));
+    }
     if (index && v) *index = v->pIndex;
     return v;
 }
@@ -5100,7 +5105,7 @@ static HRESULT WINAPI ITypeLib2_fnIsName(
     *pfName=TRUE;
 
     if (!lHashVal) {
-            lHashVal = LHashValOfNameSysA(This->syskind, This->lcid, ((LPCSTR) szNameBuf));
+            lHashVal = LHashValOfNameSys(This->syskind, This->lcid, szNameBuf);
             TRACE("%p, %s, %#lx, No hash provided, calculating.\n", iface, debugstr_w(szNameBuf), lHashVal);
     }
     ITypeInfoImpl *pTInfo;
@@ -5172,7 +5177,7 @@ static HRESULT WINAPI ITypeLib2_fnFindName(
 
     // TODO: factor out common impl with fnIsName().
     if (!lHashVal) {
-            lHashVal = LHashValOfNameSysA(This->syskind, This->lcid, ((LPCSTR) szNameBuf));
+            lHashVal = LHashValOfNameSys(This->syskind, This->lcid, szNameBuf);
             TRACE("%p, %s, %#lx, No hash provided, calculating.\n", iface, debugstr_w(szNameBuf), lHashVal);
     }
     ITypeInfoImpl *pTInfo;
@@ -5451,7 +5456,7 @@ static HRESULT WINAPI ITypeLibComp_fnBind(
         return E_INVALIDARG;
 
     if (!lHashVal) {
-            lHashVal = LHashValOfNameSysA(This->syskind, This->lcid, ((LPCSTR) szName));
+            lHashVal = LHashValOfNameSys(This->syskind, This->lcid, szName);
             TRACE("%p, %s, %#lx, No hash provided, calculating.\n", iface, debugstr_w(szName), lHashVal);
     }
     ITypeInfoImpl *pTInfo_;

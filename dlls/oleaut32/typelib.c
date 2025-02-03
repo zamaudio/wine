@@ -2046,17 +2046,17 @@ static HRESULT TLB_size_instance(ITypeInfoImpl *info, SYSKIND sys,
 
 static inline void MSFT_Seek(TLBContext *pcx, LONG where)
 {
-    if (where != DO_NOT_SEEK)
+    if (where == DO_NOT_SEEK)
+        return;
+
+    where += pcx->oStart;
+    if (where > pcx->length)
     {
-        where += pcx->oStart;
-        if (where > pcx->length)
-        {
-            /* FIXME */
-            ERR("seek beyond end (%ld/%d)\n", where, pcx->length );
-            TLB_abort();
-        }
-        pcx->pos = where;
+        /* FIXME */
+        ERR("seek beyond end (%ld/%d)\n", where, pcx->length );
+        TLB_abort();
     }
+    pcx->pos = where;
 }
 
 /* read function */
@@ -3241,16 +3241,17 @@ static ULONG WINAPI TLB_Mapping_Release(IUnknown *iface)
 {
     TLB_Mapping *This = mapping_impl_from_IUnknown(iface);
     ULONG refs = InterlockedDecrement(&This->refs);
-    if (!refs)
-    {
-        if (This->typelib_base)
-            UnmapViewOfFile(This->typelib_base);
-        if (This->mapping)
-            CloseHandle(This->mapping);
-        if (This->file != INVALID_HANDLE_VALUE)
-            CloseHandle(This->file);
-        free(This);
-    }
+    if (refs)
+        return refs;
+
+    if (This->typelib_base)
+        UnmapViewOfFile(This->typelib_base);
+    if (This->mapping)
+        CloseHandle(This->mapping);
+    if (This->file != INVALID_HANDLE_VALUE)
+        CloseHandle(This->file);
+    free(This);
+
     return refs;
 }
 
@@ -5560,21 +5561,20 @@ static const ITypeCompVtbl tlbtcvt =
 /*================== ITypeInfo(2) Methods ===================================*/
 static ITypeInfoImpl* ITypeInfoImpl_Constructor(void)
 {
-    ITypeInfoImpl *pTypeInfoImpl;
+    ITypeInfoImpl *pTypeInfoImpl = calloc(1, sizeof(ITypeInfoImpl));
+    if (!pTypeInfoImpl)
+        return NULL;
 
-    pTypeInfoImpl = calloc(1, sizeof(ITypeInfoImpl));
-    if (pTypeInfoImpl)
-    {
-      pTypeInfoImpl->ITypeInfo2_iface.lpVtbl = &tinfvt;
-      pTypeInfoImpl->ITypeComp_iface.lpVtbl = &tcompvt;
-      pTypeInfoImpl->ICreateTypeInfo2_iface.lpVtbl = &CreateTypeInfo2Vtbl;
-      pTypeInfoImpl->ref = 0;
-      pTypeInfoImpl->hreftype = -1;
-      pTypeInfoImpl->typeattr.memidConstructor = MEMBERID_NIL;
-      pTypeInfoImpl->typeattr.memidDestructor = MEMBERID_NIL;
-      pTypeInfoImpl->pcustdata_list = &pTypeInfoImpl->custdata_list;
-      list_init(pTypeInfoImpl->pcustdata_list);
-    }
+    pTypeInfoImpl->ITypeInfo2_iface.lpVtbl = &tinfvt;
+    pTypeInfoImpl->ITypeComp_iface.lpVtbl = &tcompvt;
+    pTypeInfoImpl->ICreateTypeInfo2_iface.lpVtbl = &CreateTypeInfo2Vtbl;
+    pTypeInfoImpl->ref = 0;
+    pTypeInfoImpl->hreftype = -1;
+    pTypeInfoImpl->typeattr.memidConstructor = MEMBERID_NIL;
+    pTypeInfoImpl->typeattr.memidDestructor = MEMBERID_NIL;
+    pTypeInfoImpl->pcustdata_list = &pTypeInfoImpl->custdata_list;
+    list_init(pTypeInfoImpl->pcustdata_list);
+
     TRACE("(%p)\n", pTypeInfoImpl);
     return pTypeInfoImpl;
 }
@@ -5601,13 +5601,15 @@ static HRESULT WINAPI ITypeInfo_fnQueryInterface(
     else if(IsEqualIID(riid, &IID_ITypeComp))
         *ppvObject = &This->ITypeComp_iface;
 
-    if(*ppvObject){
-        IUnknown_AddRef((IUnknown*)*ppvObject);
-        TRACE("-- Interface: (%p)->(%p)\n",ppvObject,*ppvObject);
-        return S_OK;
+    if(!*ppvObject){
+        TRACE("-- Interface: E_NOINTERFACE\n");
+        return E_NOINTERFACE;
     }
-    TRACE("-- Interface: E_NOINTERFACE\n");
-    return E_NOINTERFACE;
+
+    IUnknown_AddRef((IUnknown*)*ppvObject);
+    TRACE("-- Interface: (%p)->(%p)\n",ppvObject,*ppvObject);
+
+    return S_OK;
 }
 
 static ULONG WINAPI ITypeInfo_fnAddRef( ITypeInfo2 *iface)
@@ -5681,17 +5683,17 @@ static ULONG WINAPI ITypeInfo_fnRelease(ITypeInfo2 *iface)
 {
     ITypeInfoImpl *This = impl_from_ITypeInfo2(iface);
     ULONG ref = InterlockedDecrement(&This->ref);
+    BOOL not_attached_to_typelib = This->not_attached_to_typelib;
 
     TRACE("%p, refcount %lu.\n", iface, ref);
 
-    if (!ref)
-    {
-        BOOL not_attached_to_typelib = This->not_attached_to_typelib;
-        ITypeLib2_Release(&This->pTypeLib->ITypeLib2_iface);
-        if (not_attached_to_typelib)
-            free(This);
-        /* otherwise This will be freed when typelib is freed */
-    }
+    if (ref)
+        return ref;
+
+    ITypeLib2_Release(&This->pTypeLib->ITypeLib2_iface);
+    if (not_attached_to_typelib)
+        free(This);
+    /* otherwise This will be freed when typelib is freed */
 
     return ref;
 }

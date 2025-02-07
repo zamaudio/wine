@@ -4497,23 +4497,31 @@ static ITypeLib2* ITypeLib2_Constructor_SLTG(LPVOID pLib, DWORD dwTLBLength)
 	w = *(WORD*)(ptr + 2);
 	if(w != 0xffff) {
 	    len += w;
-	    pOtherTypeInfoBlks[i].index_name = malloc(w + 1);
+	    pOtherTypeInfoBlks[i].index_name = calloc(1, w + 1);
 	    memcpy(pOtherTypeInfoBlks[i].index_name, ptr + 4, w);
-	    pOtherTypeInfoBlks[i].index_name[w] = '\0';
-	}
+	} else {
+            FIXME_(typelib)("Cannot parse 'index_name'.\n");
+	    free(pOtherTypeInfoBlks);
+            free(pTypeLibImpl);
+            return NULL;
+        }
 	w = *(WORD*)(ptr + 4 + len);
 	if(w != 0xffff) {
 	    TRACE_(typelib)("\twith %s\n", debugstr_an(ptr + 6 + len, w));
 	    len += w;
-	    pOtherTypeInfoBlks[i].other_name = malloc(w + 1);
+	    pOtherTypeInfoBlks[i].other_name = calloc(1, w + 1);
 	    memcpy(pOtherTypeInfoBlks[i].other_name, ptr + 6 + len, w);
-	    pOtherTypeInfoBlks[i].other_name[w] = '\0';
-	}
+	} else {
+            FIXME_(typelib)("Cannot parse 'other_name'.\n");
+	    free(pOtherTypeInfoBlks);
+            free(pTypeLibImpl);
+            return NULL;
+        }
 	pOtherTypeInfoBlks[i].res1a = *(WORD*)(ptr + len + 6);
 	pOtherTypeInfoBlks[i].name_offs = *(WORD*)(ptr + len + 8);
 	extra = pOtherTypeInfoBlks[i].more_bytes = *(WORD*)(ptr + 10 + len);
 	if(extra) {
-	    pOtherTypeInfoBlks[i].extra = malloc(extra);
+	    pOtherTypeInfoBlks[i].extra = calloc(1, extra);
 	    memcpy(pOtherTypeInfoBlks[i].extra, ptr + 12, extra);
 	    len += extra;
 	}

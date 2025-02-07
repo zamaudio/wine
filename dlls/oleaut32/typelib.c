@@ -1677,6 +1677,18 @@ static inline TLBFuncDesc *TLB_get_funcdesc_by_memberid_invkind(ITypeInfoImpl *t
     return NULL;
 }
 
+static inline TLBFuncDesc *TLB_get_funcdesc_by_name(ITypeInfoImpl *typeinfo, const OLECHAR *name)
+{
+        for (int i = 0; i < typeinfo->typeattr.cFuncs; ++i) {
+            TLBFuncDesc *pFDesc = &typeinfo->funcdescs[i];
+
+            if (!lstrcmpiW(TLB_get_bstr(pFDesc->Name), name))
+                return pFDesc;
+        }
+
+        return NULL;
+}
+
 static inline TLBVarDesc *TLB_get_vardesc_by_memberid(ITypeInfoImpl *typeinfo, MEMBERID memid)
 {
     int i;
@@ -5033,24 +5045,24 @@ static HRESULT WINAPI ITypeLib2_fnIsName(
     *pfName=TRUE;
     for(tic = 0; tic < This->TypeInfoCount; ++tic){
         ITypeInfoImpl *pTInfo = This->typeinfos[tic];
+        TLBFuncDesc *pFDesc;
         TLBVarDesc *pVDesc;
-        UINT fdc;
 
         if(!lstrcmpiW(TLB_get_bstr(pTInfo->Name), szNameBuf)) {
             TLB_set_bstr(szNameBuf, pTInfo->Name);
             goto ITypeLib2_fnIsName_exit;
         }
 
-        for(fdc = 0; fdc < pTInfo->typeattr.cFuncs; ++fdc) {
-            TLBFuncDesc *pFDesc = &pTInfo->funcdescs[fdc];
-            int pc;
+        pFDesc = TLB_get_funcdesc_by_name(pTInfo, szNameBuf);
+        if (pFDesc) {
+            TLB_set_bstr(szNameBuf, pFDesc->Name);
+            goto ITypeLib2_fnIsName_exit;
+        }
 
-            if(!lstrcmpiW(TLB_get_bstr(pFDesc->Name), szNameBuf)) {
-                TLB_set_bstr(szNameBuf, pFDesc->Name);
-                goto ITypeLib2_fnIsName_exit;
-            }
+        for(UINT fdc = 0; fdc < pTInfo->typeattr.cFuncs; ++fdc) {
+            pFDesc = &pTInfo->funcdescs[fdc];
 
-            for(pc=0; pc < pFDesc->funcdesc.cParams; pc++){
+            for(int pc=0; pc < pFDesc->funcdesc.cParams; pc++){
                 if(!lstrcmpiW(TLB_get_bstr(pFDesc->pParamDesc[pc].Name), szNameBuf)) {
                     TLB_set_bstr(szNameBuf, pFDesc->pParamDesc[pc].Name);
                     goto ITypeLib2_fnIsName_exit;
@@ -5100,8 +5112,8 @@ static HRESULT WINAPI ITypeLib2_fnFindName(
     // TODO: factor out common impl with fnIsName().
     for(tic = 0; count < *found && tic < This->TypeInfoCount; ++tic) {
         ITypeInfoImpl *pTInfo = This->typeinfos[tic];
+        TLBFuncDesc *pFDesc;
         TLBVarDesc *pVDesc;
-        UINT fdc;
 
         if(!lstrcmpiW(TLB_get_bstr(pTInfo->Name), szNameBuf)) {
             memid[count] = MEMBERID_NIL;
@@ -5109,14 +5121,11 @@ static HRESULT WINAPI ITypeLib2_fnFindName(
             goto ITypeLib2_fnFindName_exit;
         }
 
-        for(fdc = 0; fdc < pTInfo->typeattr.cFuncs; ++fdc) {
-            TLBFuncDesc *pFDesc = &pTInfo->funcdescs[fdc];
-
-            if(!lstrcmpiW(TLB_get_bstr(pFDesc->Name), szNameBuf)) {
-                memid[count] = pFDesc->funcdesc.memid;
-                TLB_set_bstr(szNameBuf, pFDesc->Name);
-                goto ITypeLib2_fnFindName_exit;
-            }
+        pFDesc = TLB_get_funcdesc_by_name(pTInfo, szNameBuf);
+        if (pFDesc) {
+            memid[count] = pFDesc->funcdesc.memid;
+            TLB_set_bstr(szNameBuf, pFDesc->Name);
+            goto ITypeLib2_fnFindName_exit;
         }
 
         pVDesc = TLB_get_vardesc_by_name(pTInfo, szNameBuf);

@@ -4417,7 +4417,6 @@ static ITypeLib2* ITypeLib2_Constructor_SLTG(LPVOID pLib, DWORD dwTLBLength)
     char *pNameTable, *ptr;
     int i;
     DWORD len, order;
-    ITypeInfoImpl **ppTypeInfoImpl;
 
     TRACE_(typelib)("%p, TLB length = %ld\n", pLib, dwTLBLength);
 
@@ -4482,7 +4481,10 @@ static ITypeLib2* ITypeLib2_Constructor_SLTG(LPVOID pLib, DWORD dwTLBLength)
     /* And now TypeInfoCount of SLTG_OtherTypeInfo */
 
     pOtherTypeInfoBlks = calloc(pTypeLibImpl->TypeInfoCount, sizeof(*pOtherTypeInfoBlks));
-
+    if (!pOtherTypeInfoBlks) {
+        free(pTypeLibImpl);
+        return NULL;
+    }
 
     ptr = (char*)pLibBlk + len;
 
@@ -4561,7 +4563,11 @@ static ITypeLib2* ITypeLib2_Constructor_SLTG(LPVOID pLib, DWORD dwTLBLength)
        them in the order in which they are in the file */
 
     pTypeLibImpl->typeinfos = calloc(pTypeLibImpl->TypeInfoCount, sizeof(ITypeInfoImpl*));
-    ppTypeInfoImpl = pTypeLibImpl->typeinfos;
+    if (!pTypeLibImpl->typeinfos) {
+        free(pTypeLibImpl);
+        free(pOtherTypeInfoBlks);
+        return NULL;
+    }
 
     for(pBlk = pFirstBlk, order = pHeader->first_blk - 1, i = 0;
 	pBlkEntry[order].next != 0;
@@ -4570,6 +4576,7 @@ static ITypeLib2* ITypeLib2_Constructor_SLTG(LPVOID pLib, DWORD dwTLBLength)
       SLTG_TypeInfoHeader *pTIHeader;
       SLTG_TypeInfoTail *pTITail;
       SLTG_MemberHeader *pMemHeader;
+      ITypeInfoImpl *pTypeInfoImpl = pTypeLibImpl->typeinfos[i];
 
       if(strcmp(pBlkEntry[order].index_string + (char*)pMagic, pOtherTypeInfoBlks[i].index_name)) {
         FIXME_(typelib)("Index strings don't match\n");
@@ -4587,20 +4594,20 @@ static ITypeLib2* ITypeLib2_Constructor_SLTG(LPVOID pLib, DWORD dwTLBLength)
         "pTIHeader->res16 = %lx, pTIHeader->res1e = %lx\n",
         pTIHeader->res06, pTIHeader->res0e, pTIHeader->res16, pTIHeader->res1e);
 
-      *ppTypeInfoImpl = ITypeInfoImpl_Constructor();
-      (*ppTypeInfoImpl)->pTypeLib = pTypeLibImpl;
-      (*ppTypeInfoImpl)->index = i;
-      (*ppTypeInfoImpl)->Name = SLTG_ReadName(pNameTable, pOtherTypeInfoBlks[i].name_offs, pTypeLibImpl);
-      (*ppTypeInfoImpl)->dwHelpContext = pOtherTypeInfoBlks[i].helpcontext;
-      (*ppTypeInfoImpl)->guid = TLB_append_guid(&pTypeLibImpl->guid_list, &pOtherTypeInfoBlks[i].uuid, 2);
-      (*ppTypeInfoImpl)->typeattr.typekind = pTIHeader->typekind;
-      (*ppTypeInfoImpl)->typeattr.wMajorVerNum = pTIHeader->major_version;
-      (*ppTypeInfoImpl)->typeattr.wMinorVerNum = pTIHeader->minor_version;
-      (*ppTypeInfoImpl)->typeattr.wTypeFlags =
+      pTypeInfoImpl = ITypeInfoImpl_Constructor();
+      pTypeInfoImpl->pTypeLib = pTypeLibImpl;
+      pTypeInfoImpl->index = i;
+      pTypeInfoImpl->Name = SLTG_ReadName(pNameTable, pOtherTypeInfoBlks[i].name_offs, pTypeLibImpl);
+      pTypeInfoImpl->dwHelpContext = pOtherTypeInfoBlks[i].helpcontext;
+      pTypeInfoImpl->guid = TLB_append_guid(&pTypeLibImpl->guid_list, &pOtherTypeInfoBlks[i].uuid, 2);
+      pTypeInfoImpl->typeattr.typekind = pTIHeader->typekind;
+      pTypeInfoImpl->typeattr.wMajorVerNum = pTIHeader->major_version;
+      pTypeInfoImpl->typeattr.wMinorVerNum = pTIHeader->minor_version;
+      pTypeInfoImpl->typeattr.wTypeFlags =
 	(pTIHeader->typeflags1 >> 3) | (pTIHeader->typeflags2 << 5);
 
-      if((*ppTypeInfoImpl)->typeattr.wTypeFlags & TYPEFLAG_FDUAL)
-	(*ppTypeInfoImpl)->typeattr.typekind = TKIND_DISPATCH;
+      if(pTypeInfoImpl->typeattr.wTypeFlags & TYPEFLAG_FDUAL)
+	pTypeInfoImpl->typeattr.typekind = TKIND_DISPATCH;
 
       if((pTIHeader->typeflags1 & 7) != 2)
 	FIXME_(typelib)("typeflags1 = %02x\n", pTIHeader->typeflags1);
@@ -4608,52 +4615,52 @@ static ITypeLib2* ITypeLib2_Constructor_SLTG(LPVOID pLib, DWORD dwTLBLength)
 	FIXME_(typelib)("typeflags3 = %02x\n", pTIHeader->typeflags3);
 
       TRACE_(typelib)("TypeInfo %s of kind %s guid %s typeflags %04x\n",
-	    debugstr_w(TLB_get_bstr((*ppTypeInfoImpl)->Name)),
+	    debugstr_w(TLB_get_bstr(pTypeInfoImpl->Name)),
 	    typekind_desc[pTIHeader->typekind],
-	    debugstr_guid(TLB_get_guidref((*ppTypeInfoImpl)->guid)),
-	    (*ppTypeInfoImpl)->typeattr.wTypeFlags);
+	    debugstr_guid(TLB_get_guidref(pTypeInfoImpl->guid)),
+	    pTypeInfoImpl->typeattr.wTypeFlags);
 
       pMemHeader = (SLTG_MemberHeader*)((char *)pBlk + pTIHeader->elem_table);
 
       pTITail = (SLTG_TypeInfoTail*)((char *)(pMemHeader + 1) + pMemHeader->cbExtra);
 
-      (*ppTypeInfoImpl)->typeattr.cbAlignment = pTITail->cbAlignment;
-      (*ppTypeInfoImpl)->typeattr.cbSizeInstance = pTITail->cbSizeInstance;
-      (*ppTypeInfoImpl)->typeattr.cbSizeVft = pTITail->cbSizeVft;
+      pTypeInfoImpl->typeattr.cbAlignment = pTITail->cbAlignment;
+      pTypeInfoImpl->typeattr.cbSizeInstance = pTITail->cbSizeInstance;
+      pTypeInfoImpl->typeattr.cbSizeVft = pTITail->cbSizeVft;
 
       switch(pTIHeader->typekind) {
       case TKIND_ENUM:
-	SLTG_ProcessEnum((char *)(pMemHeader + 1), *ppTypeInfoImpl, pNameTable,
+	SLTG_ProcessEnum((char *)(pMemHeader + 1), pTypeInfoImpl, pNameTable,
                          pTIHeader, pTITail);
 	break;
 
       case TKIND_RECORD:
-	SLTG_ProcessRecord((char *)(pMemHeader + 1), *ppTypeInfoImpl, pNameTable,
+	SLTG_ProcessRecord((char *)(pMemHeader + 1), pTypeInfoImpl, pNameTable,
                            pTIHeader, pTITail);
 	break;
 
       case TKIND_INTERFACE:
-	SLTG_ProcessInterface((char *)(pMemHeader + 1), *ppTypeInfoImpl, pNameTable,
+	SLTG_ProcessInterface((char *)(pMemHeader + 1), pTypeInfoImpl, pNameTable,
                               pTIHeader, pTITail);
 	break;
 
       case TKIND_COCLASS:
-	SLTG_ProcessCoClass((char *)(pMemHeader + 1), *ppTypeInfoImpl, pNameTable,
+	SLTG_ProcessCoClass((char *)(pMemHeader + 1), pTypeInfoImpl, pNameTable,
                             pTIHeader, pTITail);
 	break;
 
       case TKIND_ALIAS:
-	SLTG_ProcessAlias((char *)(pMemHeader + 1), *ppTypeInfoImpl, pNameTable,
+	SLTG_ProcessAlias((char *)(pMemHeader + 1), pTypeInfoImpl, pNameTable,
                           pTIHeader, pTITail);
 	break;
 
       case TKIND_DISPATCH:
-	SLTG_ProcessDispatch((char *)(pMemHeader + 1), *ppTypeInfoImpl, pNameTable,
+	SLTG_ProcessDispatch((char *)(pMemHeader + 1), pTypeInfoImpl, pNameTable,
                              pTIHeader, pTITail);
 	break;
 
       case TKIND_MODULE:
-	SLTG_ProcessModule((char *)(pMemHeader + 1), *ppTypeInfoImpl, pNameTable,
+	SLTG_ProcessModule((char *)(pMemHeader + 1), pTypeInfoImpl, pNameTable,
                            pTIHeader, pTITail);
 	break;
 
@@ -4680,7 +4687,6 @@ static ITypeLib2* ITypeLib2_Constructor_SLTG(LPVOID pLib, DWORD dwTLBLength)
       X(32);
       X(34);
 #undef X
-      ++ppTypeInfoImpl;
       pBlk = (char*)pBlk + pBlkEntry[order].len;
     }
 

@@ -1689,6 +1689,22 @@ static inline TLBFuncDesc *TLB_get_funcdesc_by_name(ITypeInfoImpl *typeinfo, con
         return NULL;
 }
 
+static inline TLBParDesc *TLB_get_funcparams_by_name(ITypeInfoImpl *typeinfo, const OLECHAR *name)
+{
+        for (int i = 0; i < typeinfo->typeattr.cFuncs; ++i) {
+            TLBFuncDesc *pFDesc = &typeinfo->funcdescs[i];
+
+            for (int pc = 0; pc < pFDesc->funcdesc.cParams; pc++){
+                TLBParDesc *pPDesc = &pFDesc->pParamDesc[pc];
+
+                if (!lstrcmpiW(TLB_get_bstr(pPDesc->Name), name))
+                    return pPDesc;
+            }
+        }
+
+        return NULL;
+}
+
 static inline TLBVarDesc *TLB_get_vardesc_by_memberid(ITypeInfoImpl *typeinfo, MEMBERID memid)
 {
     int i;
@@ -5057,15 +5073,10 @@ static HRESULT WINAPI ITypeLib2_fnIsName(
             goto ITypeLib2_fnIsName_exit;
         }
 
-        for(UINT fdc = 0; fdc < pTInfo->typeattr.cFuncs; ++fdc) {
-            pFDesc = &pTInfo->funcdescs[fdc];
-
-            for(int pc=0; pc < pFDesc->funcdesc.cParams; pc++){
-                if(!lstrcmpiW(TLB_get_bstr(pFDesc->pParamDesc[pc].Name), szNameBuf)) {
-                    TLB_set_bstr(szNameBuf, pFDesc->pParamDesc[pc].Name);
-                    goto ITypeLib2_fnIsName_exit;
-                }
-            }
+        TLBParDesc *pPDesc = TLB_get_funcparams_by_name(pTInfo, szNameBuf);
+        if (pPDesc) {
+            TLB_set_bstr(szNameBuf, pPDesc->Name);
+            goto ITypeLib2_fnIsName_exit;
         }
 
         TLBVarDesc *pVDesc = TLB_get_vardesc_by_name(pTInfo, szNameBuf);

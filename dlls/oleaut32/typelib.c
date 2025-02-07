@@ -2616,22 +2616,22 @@ static void MSFT_DoVars(TLBContext *pcx, ITypeInfoImpl *pTI, int cFuncs,
 static void MSFT_DoImplTypes(TLBContext *pcx, ITypeInfoImpl *pTI, int count,
 			    int offset)
 {
-    int i;
-    MSFT_RefRecord refrec;
-    TLBImplType *pImpl;
-
     TRACE_(typelib)("\n");
 
     pTI->impltypes = TLBImplType_Alloc(count);
-    pImpl = pTI->impltypes;
-    for(i=0;i<count;i++){
-        if(offset<0) break; /* paranoia */
+
+    for (int i = 0; i < count; i++) {
+        TLBImplType *pImpl = &pTI->impltypes[i];
+        MSFT_RefRecord refrec;
+
+        if (offset < 0) break; /* paranoia */
+
         MSFT_ReadLEDWords(&refrec,sizeof(refrec),pcx,offset+pcx->pTblDir->pRefTab.offset);
         pImpl->hRef = refrec.reftype;
-        pImpl->implflags=refrec.flags;
+        pImpl->implflags = refrec.flags;
         MSFT_CustData(pcx, refrec.oCustData, &pImpl->custdata_list);
-        offset=refrec.onext;
-        ++pImpl;
+
+        offset = refrec.onext;
     }
 }
 

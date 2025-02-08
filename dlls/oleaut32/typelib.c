@@ -8745,7 +8745,7 @@ static HRESULT WINAPI ITypeComp_fnBind(
 
     TRACE("%p, %s, %#lx, 0x%x, %p, %p, %p.\n", iface, debugstr_w(szName), lHashVal, wFlags, ppTInfo, pDescKind, pBindPtr);
 
-    if((!szName && !lHashVal) || !ppTInfo | !pDescKind | !pBindPtr)
+    if((!szName && !lHashVal) || !ppTInfo || !pDescKind || !pBindPtr)
         return E_INVALIDARG;
 
     *pDescKind = DESCKIND_NONE;

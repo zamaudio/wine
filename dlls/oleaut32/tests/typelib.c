@@ -558,9 +558,9 @@ static void test_TypeComp(void)
     pTypeComp_tmp = (void*)0xdeadbeef;
     pTypeInfo = (void*)0xdeadbeef;
     hr = ITypeComp_BindType(pTypeComp, NULL, ulHash, &pTypeInfo, &pTypeComp_tmp);
-    ok(hr == E_INVALIDARG, "Got %08lx\n", hr);
-    ok(pTypeInfo == (void*)0xdeadbeef, "Got %p\n", pTypeInfo);
-    ok(pTypeComp_tmp == (void*)0xdeadbeef, "Got %p\n", pTypeComp_tmp);
+    ok_ole_success(hr, ITypeComp_BindType);
+    ok(pTypeInfo == NULL, "Got %p\n", pTypeInfo);
+    ok(pTypeComp_tmp == NULL, "Got %p\n", pTypeComp_tmp);
 
     ulHash = LHashValOfNameSys(SYS_WIN32, LOCALE_NEUTRAL, wszGUID);
     pTypeComp_tmp = (void*)0xdeadbeef;

@@ -3989,8 +3989,9 @@ static sltg_ref_lookup_t *SLTG_DoRefs(SLTG_RefInfo *pRef, ITypeLibImpl *pTL,
 static char *SLTG_DoImpls(char *pBlk, ITypeInfoImpl *pTI,
 			  BOOL OneOnly, const sltg_ref_lookup_t *ref_lookup)
 {
-    SLTG_ImplInfo *info;
-    TLBImplType *pImplType;
+    SLTG_ImplInfo *info = (SLTG_ImplInfo*)pBlk;
+    SLTG_ImplInfo *pIInfo;
+    UINT i;
     /* I don't really get this structure, usually it's 0x16 bytes
        long, but iuser.tlb contains some that are 0x18 bytes long.
        That's ok because we can use the next ptr to jump to the next
@@ -3998,30 +3999,29 @@ static char *SLTG_DoImpls(char *pBlk, ITypeInfoImpl *pTI,
        at offs 0x8 might be the clue.  For now I'm just assuming that
        the last one is the regular 0x16 bytes. */
 
-    info = (SLTG_ImplInfo*)pBlk;
-    while(1){
+    TRACE_(typelib)("SLTG_DoImpls() called\n");
+
+    for (pIInfo = info; pIInfo; pIInfo += pIInfo->next) {
         pTI->typeattr.cImplTypes++;
-        if(info->next == 0xffff)
+        if(pIInfo->next == 0xffff)
             break;
-        info = (SLTG_ImplInfo*)(pBlk + info->next);
     }
 
-    info = (SLTG_ImplInfo*)pBlk;
     pTI->impltypes = TLBImplType_Alloc(pTI->typeattr.cImplTypes);
-    pImplType = pTI->impltypes;
-    while(1) {
-	sltg_get_typelib_ref(ref_lookup, info->ref, &pImplType->hRef);
-	pImplType->implflags = info->impltypeflags;
-	++pImplType;
+    for (i = 0, pIInfo = info; (pIInfo && (i < pTI->typeattr.cImplTypes)); pIInfo += pIInfo->next, i++) {
+        TLBImplType *pImplType = &pTI->impltypes[i];
+        sltg_get_typelib_ref(ref_lookup, pIInfo->ref, &pImplType->hRef);
+        pImplType->implflags = pIInfo->impltypeflags;
 
-	if(info->next == 0xffff)
-	    break;
-	if(OneOnly)
-	    FIXME_(typelib)("Interface inheriting more than one interface\n");
-	info = (SLTG_ImplInfo*)(pBlk + info->next);
+        if(pIInfo->next == 0xffff)
+            break;
+        if(OneOnly) {
+            FIXME_(typelib)("Interface inheriting only one interface\n");
+            break;
+        }
     }
-    info++; /* see comment at top of function */
-    return (char*)info;
+
+    return (char*)pIInfo;
 }
 
 static void SLTG_DoVars(char *pBlk, char *pFirstItem, ITypeInfoImpl *pTI, unsigned short cVars,

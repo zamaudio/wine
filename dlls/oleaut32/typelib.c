@@ -8833,7 +8833,7 @@ static HRESULT WINAPI ITypeComp_fnBindType(
      * original */
 
     if (!ppTInfo || !ppTComp)
-        return E_POINTER;
+        return E_INVALIDARG;
 
     *ppTInfo = NULL;
     *ppTComp = NULL;
